@@ -41,6 +41,7 @@ fun JanusMainScreen(
     var mobileClipInput by remember { mutableStateOf("") }
     val latestItem by JanusClipboardBridge.latestState.collectAsState()
     val latestSyncedText = latestItem?.text ?: ""
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     val pairingUrl = remember(bridgeState) {
         if (bridgeState.isRunning) {
@@ -52,6 +53,50 @@ fun JanusMainScreen(
         if (pairingUrl.isNotEmpty()) {
             QrCodeGenerator.generateQrBitmap(pairingUrl, 380)
         } else null
+    }
+
+    if (showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            containerColor = DarkSurface,
+            titleContentColor = CyberCyan,
+            textContentColor = TextMain,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("About Janus", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column {
+                    Text("Janus Sovereign Bridge v1.0.0", fontWeight = FontWeight.Bold, color = CyberCyan)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "An ultra-low latency, zero-cloud workstation bridge connecting mobile devices and desktop environments across local networks.",
+                        fontSize = 13.sp,
+                        color = TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = DarkCard)
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text("DEVELOPER & ARCHITECTURE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Crafted by RMediaTech", fontWeight = FontWeight.Bold, color = TextMain)
+                    Text("https://rmediatech.com", color = CyberCyan, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        "100% Free • Zero Ads • Zero Cloud Relays • Pure Local Sovereign Engineering",
+                        fontSize = 11.sp,
+                        color = TextMuted
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAboutDialog = false }) {
+                    Text("Close", color = CyberCyan, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 
     Column(
@@ -101,24 +146,40 @@ fun JanusMainScreen(
                 )
             }
 
-            // Status Badge
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (bridgeState.isRunning) Color(0xFF10B981).copy(alpha = 0.2f) else Color.DarkGray.copy(alpha = 0.3f))
-                    .border(
-                        1.dp,
-                        if (bridgeState.isRunning) Color(0xFF10B981) else Color.Gray,
-                        RoundedCornerShape(20.dp)
+            // Status Badge & About Button
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (bridgeState.isRunning) Color(0xFF10B981).copy(alpha = 0.2f) else Color.DarkGray.copy(alpha = 0.3f))
+                        .border(
+                            1.dp,
+                            if (bridgeState.isRunning) Color(0xFF10B981) else Color.Gray,
+                            RoundedCornerShape(20.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = if (bridgeState.isRunning) "ONLINE" else "OFFLINE",
+                        color = if (bridgeState.isRunning) Color(0xFF10B981) else Color.LightGray,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
                     )
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = if (bridgeState.isRunning) "ONLINE" else "OFFLINE",
-                    color = if (bridgeState.isRunning) Color(0xFF10B981) else Color.LightGray,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                IconButton(
+                    onClick = { showAboutDialog = true },
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = "About Janus & RMediaTech",
+                        tint = CyberCyan,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
 
