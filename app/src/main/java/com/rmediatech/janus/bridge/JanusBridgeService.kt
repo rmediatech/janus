@@ -31,7 +31,10 @@ data class BridgeState(
     val localIp: String = "127.0.0.1",
     val port: Int = 8080,
     val pairingPin: String = "",
-    val sessionSecret: String = ""
+    val sessionSecret: String = "",
+    val connectedClients: Int = 0,
+    val lastActivityTime: Long = 0L,
+    val lastActivityEvent: String = ""
 )
 
 class JanusBridgeService : Service() {
@@ -131,6 +134,19 @@ class JanusBridgeService : Service() {
             port = port,
             authToken = globalAuthToken
         )
+        httpServer.onClientCountChanged = { count ->
+            _bridgeState.value = _bridgeState.value.copy(
+                connectedClients = count,
+                lastActivityTime = System.currentTimeMillis()
+            )
+            updateNotification(ip, port, globalAuthToken.pairingPin, count)
+        }
+        httpServer.onActivityEvent = { event ->
+            _bridgeState.value = _bridgeState.value.copy(
+                lastActivityTime = System.currentTimeMillis(),
+                lastActivityEvent = event
+            )
+        }
         try {
             httpServer.start()
             server = httpServer
@@ -154,6 +170,10 @@ class JanusBridgeService : Service() {
                     val text = clip.getItemAt(0).coerceToText(applicationContext).toString()
                     if (text.isNotBlank()) {
                         JanusClipboardBridge.push(text, "phone")
+                        _bridgeState.value = _bridgeState.value.copy(
+                            lastActivityTime = System.currentTimeMillis(),
+                            lastActivityEvent = "PHONE_COPY"
+                        )
                     }
                 }
             } catch (_: Exception) {}
@@ -165,6 +185,10 @@ class JanusBridgeService : Service() {
         // Listen for desktop copies -> set in Android system clipboard
         bridgeClipListener = { item ->
             if (item.source == "desktop") {
+                _bridgeState.value = _bridgeState.value.copy(
+                    lastActivityTime = System.currentTimeMillis(),
+                    lastActivityEvent = "DESKTOP_SYNC"
+                )
                 mainHandler.post {
                     try {
                         clipManager?.setPrimaryClip(ClipData.newPlainText("Janus Desktop", item.text))
@@ -180,11 +204,14 @@ class JanusBridgeService : Service() {
             localIp = ip,
             port = port,
             pairingPin = globalAuthToken.pairingPin,
-            sessionSecret = globalAuthToken.sessionSecret
+            sessionSecret = globalAuthToken.sessionSecret,
+            connectedClients = 0,
+            lastActivityTime = System.currentTimeMillis(),
+            lastActivityEvent = "STARTED"
         )
 
         // 6. Build Foreground Notification
-        val notification = buildNotification(ip, port, globalAuthToken.pairingPin)
+        val notification = buildNotification(ip, port, globalAuthToken.pairingPin, 0)
         startForeground(NOTIFICATION_ID, notification)
     }
 
@@ -257,7 +284,7 @@ class JanusBridgeService : Service() {
         }
     }
 
-    private fun buildNotification(ip: String, port: Int, pin: String): Notification {
+    private fun buildNotification(ip: String, port: Int, pin: String, clients: Int = 0): Notification {
         val tapIntent = PendingIntent.getActivity(
             this,
             0,
@@ -272,15 +299,34 @@ class JanusBridgeService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val title = if (clients > 0) {
+            "Janus: $clients Desktop${if (clients > 1) "s" else ""} Linked"
+        } else {
+            "Janus Bridge Active: http://$ip:$port"
+        }
+
+        val text = if (clients > 0) {
+            "http://$ip:$port • Live Bi-Directional Sync Active"
+        } else {
+            "Pairing PIN: $pin • Drag & Drop Ready"
+        }
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_upload_done)
-            .setContentTitle("Janus Bridge Active: http://$ip:$port")
-            .setContentText("Pairing PIN: $pin • Drag & Drop Ready")
+            .setContentTitle(title)
+            .setContentText(text)
             .setContentIntent(tapIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Bridge", stopIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
+    }
+
+    private fun updateNotification(ip: String, port: Int, pin: String, clients: Int) {
+        if (!_bridgeState.value.isRunning) return
+        val manager = getSystemService(NotificationManager::class.java)
+        val notification = buildNotification(ip, port, pin, clients)
+        manager?.notify(NOTIFICATION_ID, notification)
     }
 
     override fun onDestroy() {

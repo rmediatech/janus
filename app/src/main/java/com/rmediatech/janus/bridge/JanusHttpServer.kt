@@ -32,6 +32,8 @@ class JanusHttpServer(
 ) : NanoWSD(port) {
 
     private val connectedWebSockets = CopyOnWriteArrayList<JanusWebSocket>()
+    var onClientCountChanged: ((Int) -> Unit)? = null
+    var onActivityEvent: ((String) -> Unit)? = null
 
     init {
         // Broadcast phone clipboard events to all connected desktop WebSockets
@@ -201,6 +203,7 @@ class JanusHttpServer(
 
         val destFile = File(targetDir, safeName)
         File(uploadedTemp).copyTo(destFile, overwrite = true)
+        onActivityEvent?.invoke("FILE_UPLOAD")
 
         return jsonResponse(Response.Status.OK, JSONObject().put("success", true).put("fileName", safeName))
     }
@@ -249,6 +252,7 @@ class JanusHttpServer(
 
         val item = JanusClipboardBridge.push(text, "desktop")
         return if (item != null) {
+            onActivityEvent?.invoke("CLIPBOARD_SYNC")
             jsonResponse(Response.Status.OK, item.toJson())
         } else {
             jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "Empty or invalid clipboard payload"))
@@ -334,6 +338,8 @@ class JanusHttpServer(
 
         override fun onOpen() {
             connectedWebSockets.add(this)
+            onClientCountChanged?.invoke(connectedWebSockets.size)
+            onActivityEvent?.invoke("CLIENT_CONNECTED")
             val latest = JanusClipboardBridge.getLatest()
             if (latest != null) {
                 try {
@@ -349,6 +355,8 @@ class JanusHttpServer(
 
         override fun onClose(code: WebSocketFrame.CloseCode?, reason: String?, initiatedByRemote: Boolean) {
             connectedWebSockets.remove(this)
+            onClientCountChanged?.invoke(connectedWebSockets.size)
+            onActivityEvent?.invoke("CLIENT_DISCONNECTED")
             if (isSubscribedToLogcat) {
                 JanusLogcatStreamer.removeListener(logcatListener)
             }
