@@ -39,17 +39,8 @@ fun JanusMainScreen(
     val scrollState = rememberScrollState()
 
     var mobileClipInput by remember { mutableStateOf("") }
-    var latestSyncedText by remember { mutableStateOf(JanusClipboardBridge.getLatest()?.text ?: "") }
-
-    DisposableEffect(Unit) {
-        val listener: (com.rmediatech.janus.clipboard.ClipboardItem) -> Unit = { item ->
-            latestSyncedText = item.text
-        }
-        JanusClipboardBridge.addListener(listener)
-        onDispose {
-            JanusClipboardBridge.removeListener(listener)
-        }
-    }
+    val latestItem by JanusClipboardBridge.latestState.collectAsState()
+    val latestSyncedText = latestItem?.text ?: ""
 
     val pairingUrl = remember(bridgeState) {
         if (bridgeState.isRunning) {

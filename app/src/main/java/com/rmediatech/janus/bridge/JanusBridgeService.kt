@@ -5,15 +5,21 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.rmediatech.janus.MainActivity
+import com.rmediatech.janus.clipboard.ClipboardItem
+import com.rmediatech.janus.clipboard.JanusClipboardBridge
 import com.rmediatech.janus.security.JanusAuthToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +41,9 @@ class JanusBridgeService : Service() {
     private var multicastLock: WifiManager.MulticastLock? = null
     private var nsdManager: NsdManager? = null
     private var nsdRegistrationListener: NsdManager.RegistrationListener? = null
+    private var clipManager: ClipboardManager? = null
+    private var clipListener: ClipboardManager.OnPrimaryClipChangedListener? = null
+    private var bridgeClipListener: ((ClipboardItem) -> Unit)? = null
 
     companion object {
         const val CHANNEL_ID = "janus_bridge_channel"
@@ -133,7 +142,39 @@ class JanusBridgeService : Service() {
         // 3. Register mDNS service for zero-conf auto discovery
         registerNsd(port)
 
-        // 4. Update observable state
+        // 4. Hook bi-directional system clipboard sync
+        val mainHandler = Handler(Looper.getMainLooper())
+        clipManager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+
+        // Listen for phone copies anywhere on device -> push to Janus bridge
+        clipListener = ClipboardManager.OnPrimaryClipChangedListener {
+            try {
+                val clip = clipManager?.primaryClip
+                if (clip != null && clip.itemCount > 0) {
+                    val text = clip.getItemAt(0).coerceToText(applicationContext).toString()
+                    if (text.isNotBlank()) {
+                        JanusClipboardBridge.push(text, "phone")
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        mainHandler.post {
+            clipListener?.let { clipManager?.addPrimaryClipChangedListener(it) }
+        }
+
+        // Listen for desktop copies -> set in Android system clipboard
+        bridgeClipListener = { item ->
+            if (item.source == "desktop") {
+                mainHandler.post {
+                    try {
+                        clipManager?.setPrimaryClip(ClipData.newPlainText("Janus Desktop", item.text))
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+        bridgeClipListener?.let { JanusClipboardBridge.addListener(it) }
+
+        // 5. Update observable state
         _bridgeState.value = BridgeState(
             isRunning = true,
             localIp = ip,
@@ -142,7 +183,7 @@ class JanusBridgeService : Service() {
             sessionSecret = globalAuthToken.sessionSecret
         )
 
-        // 5. Build Foreground Notification
+        // 6. Build Foreground Notification
         val notification = buildNotification(ip, port, globalAuthToken.pairingPin)
         startForeground(NOTIFICATION_ID, notification)
     }
@@ -152,6 +193,17 @@ class JanusBridgeService : Service() {
             server?.stop()
         } catch (_: Exception) {}
         server = null
+
+        try {
+            if (clipListener != null) {
+                clipManager?.removePrimaryClipChangedListener(clipListener)
+                clipListener = null
+            }
+            if (bridgeClipListener != null) {
+                JanusClipboardBridge.removeListener(bridgeClipListener!!)
+                bridgeClipListener = null
+            }
+        } catch (_: Exception) {}
 
         try {
             if (nsdRegistrationListener != null) {

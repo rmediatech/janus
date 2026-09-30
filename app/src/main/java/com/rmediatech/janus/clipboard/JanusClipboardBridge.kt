@@ -1,5 +1,7 @@
 package com.rmediatech.janus.clipboard
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -28,6 +30,8 @@ object JanusClipboardBridge {
     private const val MAX_HISTORY = 30
     private val history = mutableListOf<ClipboardItem>()
     private val listeners = CopyOnWriteArrayList<(ClipboardItem) -> Unit>()
+    private val _latestState = MutableStateFlow<ClipboardItem?>(null)
+    val latestState = _latestState.asStateFlow()
 
     // ANSI escape code stripper (CSI, OSC, and raw escapes)
     private val ANSI_REGEX = Regex("(\u001B\\[[0-?]*[ -/]*[@-~]|\u001B\\][^\u0007]*\u0007|\u001B[@-_])")
@@ -60,6 +64,7 @@ object JanusClipboardBridge {
         if (history.size > MAX_HISTORY) {
             history.removeAt(history.size - 1)
         }
+        _latestState.value = item
 
         // Notify subscribers
         for (listener in listeners) {
@@ -80,6 +85,7 @@ object JanusClipboardBridge {
     @Synchronized
     fun clearHistory() {
         history.clear()
+        _latestState.value = null
     }
 
     fun addListener(listener: (ClipboardItem) -> Unit) {

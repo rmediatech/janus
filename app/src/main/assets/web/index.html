@@ -404,18 +404,37 @@
         // WebSockets
         function initWebSocket() {
             const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${proto}//${window.location.host}/ws`);
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'clipboard_update') {
-                        fetchClipboardHistory();
-                    } else if (data.type === 'logcat_line') {
-                        appendLogcat(data.line);
-                    }
-                } catch (e) {}
-            };
+            try {
+                ws = new WebSocket(`${proto}//${window.location.host}/ws?token=${encodeURIComponent(authToken)}`);
+                ws.onopen = () => {
+                    document.getElementById('tel-ws').innerText = 'WS Live';
+                    document.getElementById('tel-ws').style.color = 'var(--success)';
+                };
+                ws.onclose = () => {
+                    document.getElementById('tel-ws').innerText = 'Reconnecting...';
+                    document.getElementById('tel-ws').style.color = 'var(--accent-amber)';
+                    setTimeout(initWebSocket, 2000);
+                };
+                ws.onerror = () => {
+                    try { ws.close(); } catch(e) {}
+                };
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'clipboard_update') {
+                            fetchClipboardHistory();
+                        } else if (data.type === 'logcat_line') {
+                            appendLogcat(data.line);
+                        }
+                    } catch (e) {}
+                };
+            } catch (e) {
+                setTimeout(initWebSocket, 3000);
+            }
         }
+
+        // Periodic background poll guaranteeing updates even if socket buffers or sleeps
+        setInterval(fetchClipboardHistory, 1500);
 
         // Logcat
         function toggleLogcat() {

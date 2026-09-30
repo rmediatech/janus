@@ -299,12 +299,27 @@ class JanusHttpServer(
             try {
                 if (ws.isOpen) {
                     ws.send(message)
+                    ws.flushSocket()
                 }
             } catch (_: Exception) {}
         }
     }
 
     inner class JanusWebSocket(handshake: IHTTPSession) : WebSocket(handshake) {
+        private val outField by lazy {
+            try {
+                val f = WebSocket::class.java.getDeclaredField("out")
+                f.isAccessible = true
+                f
+            } catch (_: Exception) { null }
+        }
+
+        fun flushSocket() {
+            try {
+                (outField?.get(this) as? java.io.OutputStream)?.flush()
+            } catch (_: Exception) {}
+        }
+
         private var isSubscribedToLogcat = false
         private val logcatListener: (String) -> Unit = { line ->
             try {
@@ -313,11 +328,23 @@ class JanusHttpServer(
                     put("line", line)
                 }.toString()
                 send(msg)
+                flushSocket()
             } catch (_: Exception) {}
         }
 
         override fun onOpen() {
             connectedWebSockets.add(this)
+            val latest = JanusClipboardBridge.getLatest()
+            if (latest != null) {
+                try {
+                    val initMsg = JSONObject().apply {
+                        put("type", "clipboard_update")
+                        put("item", latest.toJson())
+                    }.toString()
+                    send(initMsg)
+                    flushSocket()
+                } catch (_: Exception) {}
+            }
         }
 
         override fun onClose(code: WebSocketFrame.CloseCode?, reason: String?, initiatedByRemote: Boolean) {
