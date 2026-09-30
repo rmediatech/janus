@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Janus • Sovereign Workstation Bridge</title>
+    <style>
+        :root {
+            --bg-base: #0A0E17;
+            --bg-surface: #111827;
+            --bg-card: #1F2937;
+            --border: #374151;
+            --accent: #00F5FF;
+            --accent-amber: #F59E0B;
+            --text-main: #F9FAFB;
+            --text-muted: #9CA3AF;
+            --danger: #EF4444;
+            --success: #10B981;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif; }
+        body { background: var(--bg-base); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; }
+
+        header {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-logo { font-size: 24px; font-weight: 900; letter-spacing: 2px; color: var(--accent); }
+        .brand-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(0,245,255,0.15); color: var(--accent); border: 1px solid var(--accent); }
+        
+        .telemetry { display: flex; gap: 18px; font-size: 13px; color: var(--text-muted); align-items: center; }
+        .telemetry-item b { color: var(--text-main); }
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--success); }
+
+        nav {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            padding: 0 24px;
+            gap: 8px;
+        }
+        .nav-tab {
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .nav-tab:hover { color: var(--text-main); }
+        .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        main { flex: 1; padding: 24px; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+        .panel { display: none; }
+        .panel.active { display: block; }
+
+        /* Explorer Tab */
+        .breadcrumbs {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            background: var(--bg-surface);
+            padding: 10px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        .crumb { color: var(--accent); cursor: pointer; text-decoration: underline; }
+        .crumb:last-child { color: var(--text-main); text-decoration: none; cursor: default; }
+
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: rgba(31, 41, 55, 0.4);
+            transition: border-color 0.2s;
+        }
+        .drop-zone.dragover { border-color: var(--accent); background: rgba(0, 245, 255, 0.05); }
+
+        .file-table { width: 100%; border-collapse: collapse; background: var(--bg-surface); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+        .file-table th { background: var(--bg-card); text-align: left; padding: 12px 16px; font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
+        .file-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+        .file-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .file-name { display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-main); }
+        .file-name:hover { color: var(--accent); }
+        .apk-badge { background: rgba(245,158,11,0.2); color: var(--accent-amber); font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--accent-amber); margin-left: 8px; }
+
+        .btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+        .btn-primary:hover { opacity: 0.9; color: #000; }
+        .btn-danger { color: var(--danger); border-color: rgba(239,68,68,0.3); }
+        .btn-danger:hover { background: rgba(239,68,68,0.1); border-color: var(--danger); color: var(--danger); }
+
+        /* Clipboard Tab */
+        .clip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .clip-box { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+        .clip-box h3 { font-size: 16px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+        textarea { width: 100%; height: 160px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; color: var(--text-main); padding: 12px; font-family: monospace; font-size: 14px; resize: vertical; margin-bottom: 12px; }
+        textarea:focus { outline: none; border-color: var(--accent); }
+
+        .clip-history-item {
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-family: monospace;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Logcat Tab */
+        .logcat-container { background: #000; border: 1px solid var(--border); border-radius: 8px; height: 600px; display: flex; flex-direction: column; }
+        .logcat-toolbar { background: var(--bg-surface); padding: 10px 16px; display: flex; gap: 12px; border-bottom: 1px solid var(--border); }
+        .logcat-console { flex: 1; padding: 12px; overflow-y: auto; font-family: "Courier New", Courier, monospace; font-size: 12px; line-height: 1.5; color: #00FF66; white-space: pre-wrap; }
+        .logcat-line-error { color: #FF5555; }
+        .logcat-line-warn { color: #FFAA00; }
+        .logcat-line-info { color: #55FFFF; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <span class="brand-logo">JANUS</span>
+            <span class="brand-badge">SOVEREIGN BRIDGE</span>
+        </div>
+        <div class="telemetry">
+            <span class="telemetry-item"><span class="dot"></span> <span id="tel-device">Connecting...</span></span>
+            <span class="telemetry-item">Storage: <b id="tel-storage">--</b></span>
+            <span class="telemetry-item">Bridge: <b id="tel-ws">WS Active</b></span>
+        </div>
+    </header>
+
+    <nav>
+        <div class="nav-tab active" onclick="switchTab('explorer')">📁 File Explorer & Sideload</div>
+        <div class="nav-tab" onclick="switchTab('clipboard')">📋 Clipboard Bridge</div>
+        <div class="nav-tab" onclick="switchTab('logcat')">📜 Wireless Logcat</div>
+    </nav>
+
+    <main>
+        <!-- Tab 1: File Explorer -->
+        <section id="panel-explorer" class="panel active">
+            <div class="breadcrumbs" id="breadcrumbs">
+                <span class="crumb" onclick="navigateTo('')">root</span>
+            </div>
+
+            <div class="drop-zone" id="drop-zone">
+                <p><b>Drag & Drop files or APKs here</b> to upload or sideload</p>
+                <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Dropping an .apk will trigger the Android Package Installer on your device</p>
+                <input type="file" id="file-input" style="display: none;" onchange="handleFileSelect(event)">
+                <button class="btn btn-primary" style="margin-top: 12px;" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                <button class="btn" style="margin-top: 12px; margin-left: 8px;" onclick="downloadZip()">Download Folder as .ZIP</button>
+            </div>
+
+            <table class="file-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Size</th>
+                        <th>Type</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="file-tbody">
+                    <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Loading filesystem...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Tab 2: Clipboard -->
+        <section id="panel-clipboard" class="panel">
+            <div class="clip-grid">
+                <div class="clip-box">
+                    <h3>Push Text to Phone</h3>
+                    <textarea id="clip-input" placeholder="Type or paste code, tokens, commands, or URLs here..."></textarea>
+                    <button class="btn btn-primary" onclick="pushClipboard()">Send to Phone Clipboard</button>
+                </div>
+                <div class="clip-box">
+                    <h3>Phone Clipboard Stream</h3>
+                    <div id="clip-history">
+                        <p style="color: var(--text-muted); font-size: 13px;">Waiting for clipboard updates from device...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 3: Logcat -->
+        <section id="panel-logcat" class="panel">
+            <div class="logcat-container">
+                <div class="logcat-toolbar">
+                    <input type="text" id="logcat-filter" placeholder="Filter by tag or keyword (e.g. Janus, ActivityManager)..." style="flex: 1; background: var(--bg-base); border: 1px solid var(--border); color: var(--text-main); padding: 6px 12px; border-radius: 4px;" oninput="filterLogcat()">
+                    <button class="btn" onclick="toggleLogcat()" id="logcat-toggle-btn">Stop Stream</button>
+                    <button class="btn btn-danger" onclick="clearLogcat()">Clear</button>
+                </div>
+                <div class="logcat-console" id="logcat-console"></div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let currentPath = '';
+        let authToken = new URLSearchParams(window.location.search).get('token') || '';
+        let ws;
+        let logcatActive = false;
+        let allLogcatLines = [];
+
+        function switchTab(tab) {
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('panel-' + tab).classList.add('active');
+
+            if (tab === 'logcat' && !logcatActive) {
+                toggleLogcat();
+            }
+        }
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/v1/auth/status?token=' + authToken);
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('tel-device').innerText = `${data.deviceBrand} ${data.deviceName} (Android ${data.androidVersion})`;
+                    document.getElementById('tel-storage').innerText = data.storageFormatted;
+                }
+            } catch (e) {
+                console.error('Status fetch failed', e);
+            }
+        }
+
+        async function loadFiles(path = '') {
+            currentPath = path;
+            renderBreadcrumbs();
+            const tbody = document.getElementById('file-tbody');
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Loading...</td></tr>';
+            try {
+                const res = await fetch(`/api/v1/fs/list?path=${encodeURIComponent(path)}&token=${authToken}`);
+                const data = await res.json();
+                if (data.entries) {
+                    renderFileTable(data.entries);
+                }
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger);">Failed to load directory.</td></tr>';
+            }
+        }
+
+        function renderBreadcrumbs() {
+            const container = document.getElementById('breadcrumbs');
+            const parts = currentPath.split('/').filter(Boolean);
+            let html = '<span class="crumb" onclick="navigateTo(\'\')">root</span>';
+            let accumulated = '';
+            for (const part of parts) {
+                accumulated += (accumulated ? '/' : '') + part;
+                html += ` / <span class="crumb" onclick="navigateTo('${accumulated}')">${part}</span>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function navigateTo(path) {
+            loadFiles(path);
+        }
+
+        function renderFileTable(entries) {
+            const tbody = document.getElementById('file-tbody');
+            if (entries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Empty folder</td></tr>';
+                return;
+            }
+            tbody.innerHTML = entries.map(item => {
+                const icon = item.isDirectory ? '📁' : (item.isApk ? '📦' : '📄');
+                const badge = item.isApk ? '<span class="apk-badge">APK</span>' : '';
+                const clickHandler = item.isDirectory ? `onclick="navigateTo('${item.path}')"` : '';
+                return `
+                    <tr>
+                        <td>
+                            <div class="file-name" ${clickHandler}>
+                                <span>${icon}</span>
+                                <b>${item.name}</b>
+                                ${badge}
+                            </div>
+                        </td>
+                        <td>${item.formattedSize}</td>
+                        <td style="color: var(--text-muted); font-size: 12px;">${item.mimeType}</td>
+                        <td style="text-align: right;">
+                            ${item.isApk ? `<button class="btn btn-primary" onclick="installApk('${item.path}')">Install</button>` : ''}
+                            ${!item.isDirectory ? `<button class="btn" onclick="downloadFile('${item.path}')">Download</button>` : `<button class="btn" onclick="downloadZip('${item.path}')">.ZIP</button>`}
+                            <button class="btn btn-danger" onclick="deleteEntry('${item.path}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function downloadFile(path) {
+            window.location.href = `/api/v1/fs/download?path=${encodeURIComponent(path)}&token=${authToken}`;
+        }
+
+        function downloadZip(path = currentPath) {
+            window.location.href = `/api/v1/fs/zip?path=${encodeURIComponent(path)}&token=${authToken}`;
+        }
+
+        async function deleteEntry(path) {
+            if (!confirm(`Are you sure you want to delete ${path}?`)) return;
+            const res = await fetch(`/api/v1/fs/delete?path=${encodeURIComponent(path)}&token=${authToken}`, { method: 'POST' });
+            loadFiles(currentPath);
+        }
+
+        // Drop zone handlers
+        const dropZone = document.getElementById('drop-zone');
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                uploadFiles(e.dataTransfer.files);
+            }
+        });
+
+        function handleFileSelect(e) {
+            if (e.target.files.length > 0) {
+                uploadFiles(e.target.files);
+            }
+        }
+
+        async function uploadFiles(files) {
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+                const isApk = file.name.endsWith('.apk');
+                const endpoint = isApk ? '/api/v1/install' : `/api/v1/fs/upload?path=${encodeURIComponent(currentPath)}&fileName=${encodeURIComponent(file.name)}&token=${authToken}`;
+
+                try {
+                    await fetch(endpoint, {
+                        method: 'POST',
+                        body: formData
+                    });
+                } catch (e) {
+                    console.error('Upload failed', e);
+                }
+            }
+            loadFiles(currentPath);
+        }
+
+        // Clipboard
+        async function pushClipboard() {
+            const text = document.getElementById('clip-input').value;
+            if (!text.trim()) return;
+            await fetch(`/api/v1/clipboard?token=${authToken}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            document.getElementById('clip-input').value = '';
+            fetchClipboardHistory();
+        }
+
+        async function fetchClipboardHistory() {
+            try {
+                const res = await fetch(`/api/v1/clipboard?token=${authToken}`);
+                const data = await res.json();
+                renderClipboardHistory(data.history || []);
+            } catch (e) {}
+        }
+
+        function renderClipboardHistory(items) {
+            const container = document.getElementById('clip-history');
+            if (items.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No clipboard entries yet.</p>';
+                return;
+            }
+            container.innerHTML = items.map(item => `
+                <div class="clip-history-item">
+                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">${item.text}</span>
+                    <button class="btn" onclick="navigator.clipboard.writeText('${item.text.replace(/'/g, "\\'")}')">Copy</button>
+                </div>
+            `).join('');
+        }
+
+        // WebSockets
+        function initWebSocket() {
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${proto}//${window.location.host}/ws`);
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'clipboard_update') {
+                        fetchClipboardHistory();
+                    } else if (data.type === 'logcat_line') {
+                        appendLogcat(data.line);
+                    }
+                } catch (e) {}
+            };
+        }
+
+        // Logcat
+        function toggleLogcat() {
+            logcatActive = !logcatActive;
+            const btn = document.getElementById('logcat-toggle-btn');
+            btn.innerText = logcatActive ? 'Stop Stream' : 'Resume Stream';
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: logcatActive ? 'start_logcat' : 'stop_logcat' }));
+            }
+        }
+
+        function clearLogcat() {
+            allLogcatLines = [];
+            document.getElementById('logcat-console').innerHTML = '';
+        }
+
+        function appendLogcat(line) {
+            allLogcatLines.push(line);
+            if (allLogcatLines.length > 2000) allLogcatLines.shift();
+            const consoleDiv = document.getElementById('logcat-console');
+            const p = document.createElement('div');
+            p.innerText = line;
+            if (line.includes(' E ') || line.includes('FATAL')) p.className = 'logcat-line-error';
+            else if (line.includes(' W ')) p.className = 'logcat-line-warn';
+            else if (line.includes(' I ')) p.className = 'logcat-line-info';
+            consoleDiv.appendChild(p);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        // Initial Boot
+        fetchStatus();
+        loadFiles('');
+        fetchClipboardHistory();
+        initWebSocket();
+    </script>
+</body>
+</html>
