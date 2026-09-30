@@ -1,3 +1,4 @@
+import os
 import urllib.request
 import urllib.parse
 import json
@@ -7,8 +8,8 @@ import hashlib
 import socket
 import time
 
-BASE_URL = "http://192.168.1.168:8080"
-TOKEN = "JNX-JSAH"
+BASE_URL = os.getenv("JANUS_URL", "http://127.0.0.1:8080")
+TOKEN = os.getenv("JANUS_TOKEN", "DEMO-PIN")
 
 def log_test(name, success, details=""):
     status = "✅ PASS" if success else "❌ FAIL"
@@ -193,12 +194,15 @@ def run_tests():
     # -------------------------------------------------------------
     # 6. WEBSOCKET LOGCAT STREAMING
     # -------------------------------------------------------------
+    parsed_url = urllib.parse.urlparse(BASE_URL)
+    ws_host = parsed_url.hostname or "127.0.0.1"
+    ws_port = parsed_url.port or 8080
     ws_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ws_sock.settimeout(5.0)
-    ws_sock.connect(("192.168.1.168", 8080))
+    ws_sock.connect((ws_host, ws_port))
     ws_handshake = (
         f"GET /ws?token={TOKEN} HTTP/1.1\r\n"
-        f"Host: 192.168.1.168:8080\r\n"
+        f"Host: {ws_host}:{ws_port}\r\n"
         f"Upgrade: websocket\r\n"
         f"Connection: Upgrade\r\n"
         f"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
