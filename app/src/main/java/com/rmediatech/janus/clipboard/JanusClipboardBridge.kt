@@ -1,5 +1,7 @@
 package com.rmediatech.janus.clipboard
 
+import com.rmediatech.janus.logging.SovereignLogger
+import com.rmediatech.janus.security.SovereignSanitizer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
@@ -22,8 +24,8 @@ data class ClipboardItem(
 }
 
 /**
- * JanusClipboardBridge manages bi-directional clipboard sync with ANSI scrubbing
- * and terminal injection protection.
+ * JanusClipboardBridge manages bi-directional clipboard sync with ANSI scrubbing,
+ * allocation bomb bounding, and terminal injection protection.
  */
 object JanusClipboardBridge {
 
@@ -33,17 +35,10 @@ object JanusClipboardBridge {
     private val _latestState = MutableStateFlow<ClipboardItem?>(null)
     val latestState = _latestState.asStateFlow()
 
-    // ANSI escape code stripper (CSI, OSC, and raw escapes)
-    private val ANSI_REGEX = Regex("(\u001B\\[[0-?]*[ -/]*[@-~]|\u001B\\][^\u0007]*\u0007|\u001B[@-_])")
-
     /**
-     * Sanitizes raw text: removes ANSI sequences, null bytes, and dangerous terminal escapes.
+     * Sanitizes raw text: removes ANSI sequences, null bytes, and caps at 64KB.
      */
-    fun sanitize(raw: String): String {
-        var clean = ANSI_REGEX.replace(raw, "")
-        clean = clean.replace("\u0000", "")
-        return clean
-    }
+    fun sanitize(raw: String): String = SovereignSanitizer.sanitizeClipboard(raw)
 
     /**
      * Pushes new clipboard text from either "phone" or "desktop".
@@ -65,6 +60,10 @@ object JanusClipboardBridge {
             history.removeAt(history.size - 1)
         }
         _latestState.value = item
+        SovereignLogger.d(
+            SovereignLogger.Category.BRIDGE,
+            "Clipboard synced from $source (${clean.length} chars)"
+        )
 
         // Notify subscribers
         for (listener in listeners) {

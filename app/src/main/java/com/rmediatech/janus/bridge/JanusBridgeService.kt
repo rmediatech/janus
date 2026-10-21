@@ -1,25 +1,20 @@
 package com.rmediatech.janus.bridge
 
-import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.nsd.NsdManager
-import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import androidx.core.app.NotificationCompat
-import com.rmediatech.janus.MainActivity
 import com.rmediatech.janus.clipboard.ClipboardItem
 import com.rmediatech.janus.clipboard.JanusClipboardBridge
+import com.rmediatech.janus.logging.SovereignLogger
 import com.rmediatech.janus.security.JanusAuthToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +32,11 @@ data class BridgeState(
     val lastActivityEvent: String = ""
 )
 
+/**
+ * Sovereign Janus Bridge Foreground Service:
+ * One Job: Manages bridge lifecycle, Wi-Fi locks, system clipboard hooks,
+ * and 3D temporal wake validation (`SOVEREIGN-LIFECYCLE-VIABILITY-01`).
+ */
 class JanusBridgeService : Service() {
 
     private var server: JanusHttpServer? = null
@@ -53,28 +53,27 @@ class JanusBridgeService : Service() {
         const val NOTIFICATION_ID = 2026
         const val ACTION_START = "com.rmediatech.janus.ACTION_START"
         const val ACTION_STOP = "com.rmediatech.janus.ACTION_STOP"
+        const val ACTION_TEMPORAL_RESUME = "com.rmediatech.janus.ACTION_TEMPORAL_RESUME"
 
         private val _bridgeState = MutableStateFlow(BridgeState())
         val bridgeState = _bridgeState.asStateFlow()
-
         val globalAuthToken = JanusAuthToken()
 
         fun startService(context: Context) {
-            val intent = Intent(context, JanusBridgeService::class.java).apply {
-                action = ACTION_START
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            val intent = Intent(context, JanusBridgeService::class.java).apply { action = ACTION_START }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+            else context.startService(intent)
         }
 
         fun stopService(context: Context) {
-            val intent = Intent(context, JanusBridgeService::class.java).apply {
-                action = ACTION_STOP
+            context.startService(Intent(context, JanusBridgeService::class.java).apply { action = ACTION_STOP })
+        }
+
+        fun onTemporalResume(context: Context) {
+            SovereignLogger.i(SovereignLogger.Category.LIFECYCLE, "onTemporalResume() — verifying bridge & socket liveness")
+            if (_bridgeState.value.isRunning) {
+                context.startService(Intent(context, JanusBridgeService::class.java).apply { action = ACTION_TEMPORAL_RESUME })
             }
-            context.startService(intent)
         }
 
         fun getDeviceIp(): String {
@@ -98,107 +97,87 @@ class JanusBridgeService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        SovereignLogger.init(applicationContext)
+        globalAuthToken.initPersistence(applicationContext)
+        JanusServiceHelper.createNotificationChannel(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> startBridge()
             ACTION_STOP -> stopBridge()
+            ACTION_TEMPORAL_RESUME -> verifyTemporalLiveness()
         }
         return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private fun verifyTemporalLiveness() {
+        val currentServer = server
+        if (!_bridgeState.value.isRunning || currentServer == null) return
+
+        val freshIp = getDeviceIp()
+        val oldIp = _bridgeState.value.localIp
+        if (freshIp != oldIp && freshIp != "127.0.0.1") {
+            SovereignLogger.i(SovereignLogger.Category.NETWORK, "Local LAN IP drifted across sleep boundary: $oldIp -> $freshIp")
+            _bridgeState.value = _bridgeState.value.copy(localIp = freshIp)
+        }
+
+        Thread {
+            val liveClients = currentServer.pruneAndProbeConnections()
+            if (liveClients != _bridgeState.value.connectedClients) {
+                _bridgeState.value = _bridgeState.value.copy(connectedClients = liveClients)
+            }
+            updateNotification(_bridgeState.value.localIp, _bridgeState.value.port, globalAuthToken.pairingPin, liveClients)
+        }.start()
+
+        if (!currentServer.isAlive) {
+            SovereignLogger.w(SovereignLogger.Category.LIFECYCLE, "Server socket dead after wake; self-healing bridge")
+            try { currentServer.stop() } catch (_: Exception) {}
+            server = null
+            startBridge()
+        }
+    }
+
     private fun startBridge() {
         if (server != null) return
-
         val port = 8080
         val ip = getDeviceIp()
+        globalAuthToken.initPersistence(applicationContext)
 
-        // 1. Acquire Wi-Fi locks to prevent packet drops and sleep disconnects
         val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         wifiLock = wifiManager?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Janus:WifiLock")?.apply {
-            setReferenceCounted(false)
-            acquire()
+            setReferenceCounted(false); acquire()
         }
         multicastLock = wifiManager?.createMulticastLock("Janus:MulticastLock")?.apply {
-            setReferenceCounted(false)
-            acquire()
+            setReferenceCounted(false); acquire()
         }
 
-        // 2. Start HTTP & WebSocket Server
-        val httpServer = JanusHttpServer(
-            context = applicationContext,
-            port = port,
-            authToken = globalAuthToken
-        )
-        httpServer.onClientCountChanged = { count ->
-            _bridgeState.value = _bridgeState.value.copy(
-                connectedClients = count,
-                lastActivityTime = System.currentTimeMillis()
-            )
-            updateNotification(ip, port, globalAuthToken.pairingPin, count)
-        }
-        httpServer.onActivityEvent = { event ->
-            _bridgeState.value = _bridgeState.value.copy(
-                lastActivityTime = System.currentTimeMillis(),
-                lastActivityEvent = event
-            )
+        val httpServer = JanusHttpServer(applicationContext, port, globalAuthToken).apply {
+            onClientCountChanged = { count ->
+                _bridgeState.value = _bridgeState.value.copy(connectedClients = count, lastActivityTime = System.currentTimeMillis())
+                updateNotification(_bridgeState.value.localIp, port, globalAuthToken.pairingPin, count)
+            }
+            onActivityEvent = { event ->
+                _bridgeState.value = _bridgeState.value.copy(lastActivityTime = System.currentTimeMillis(), lastActivityEvent = event)
+            }
         }
         try {
             httpServer.start()
             server = httpServer
+            SovereignLogger.i(SovereignLogger.Category.BRIDGE, "JanusHttpServer listening on http://$ip:$port (PIN=${globalAuthToken.pairingPin})")
         } catch (e: Exception) {
+            SovereignLogger.e(SovereignLogger.Category.BRIDGE, "Failed starting JanusHttpServer on :$port", e)
             stopBridge()
             return
         }
 
-        // 3. Register mDNS service for zero-conf auto discovery
-        registerNsd(port)
+        val (nsd, listener) = JanusServiceHelper.registerNsd(this, port)
+        nsdManager = nsd
+        nsdRegistrationListener = listener
+        setupClipboardHooks()
 
-        // 4. Hook bi-directional system clipboard sync
-        val mainHandler = Handler(Looper.getMainLooper())
-        clipManager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-
-        // Listen for phone copies anywhere on device -> push to Janus bridge
-        clipListener = ClipboardManager.OnPrimaryClipChangedListener {
-            try {
-                val clip = clipManager?.primaryClip
-                if (clip != null && clip.itemCount > 0) {
-                    val text = clip.getItemAt(0).coerceToText(applicationContext).toString()
-                    if (text.isNotBlank()) {
-                        JanusClipboardBridge.push(text, "phone")
-                        _bridgeState.value = _bridgeState.value.copy(
-                            lastActivityTime = System.currentTimeMillis(),
-                            lastActivityEvent = "PHONE_COPY"
-                        )
-                    }
-                }
-            } catch (_: Exception) {}
-        }
-        mainHandler.post {
-            clipListener?.let { clipManager?.addPrimaryClipChangedListener(it) }
-        }
-
-        // Listen for desktop copies -> set in Android system clipboard
-        bridgeClipListener = { item ->
-            if (item.source == "desktop") {
-                _bridgeState.value = _bridgeState.value.copy(
-                    lastActivityTime = System.currentTimeMillis(),
-                    lastActivityEvent = "DESKTOP_SYNC"
-                )
-                mainHandler.post {
-                    try {
-                        clipManager?.setPrimaryClip(ClipData.newPlainText("Janus Desktop", item.text))
-                    } catch (_: Exception) {}
-                }
-            }
-        }
-        bridgeClipListener?.let { JanusClipboardBridge.addListener(it) }
-
-        // 5. Update observable state
         _bridgeState.value = BridgeState(
             isRunning = true,
             localIp = ip,
@@ -209,36 +188,47 @@ class JanusBridgeService : Service() {
             lastActivityTime = System.currentTimeMillis(),
             lastActivityEvent = "STARTED"
         )
+        startForeground(NOTIFICATION_ID, JanusServiceHelper.buildNotification(this, ip, port, globalAuthToken.pairingPin, 0))
+    }
 
-        // 6. Build Foreground Notification
-        val notification = buildNotification(ip, port, globalAuthToken.pairingPin, 0)
-        startForeground(NOTIFICATION_ID, notification)
+    private fun setupClipboardHooks() {
+        val mainHandler = Handler(Looper.getMainLooper())
+        clipManager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+
+        clipListener = ClipboardManager.OnPrimaryClipChangedListener {
+            try {
+                val clip = clipManager?.primaryClip
+                if (clip != null && clip.itemCount > 0) {
+                    val text = clip.getItemAt(0).coerceToText(applicationContext).toString()
+                    if (text.isNotBlank()) {
+                        JanusClipboardBridge.push(text, "phone")
+                        _bridgeState.value = _bridgeState.value.copy(lastActivityTime = System.currentTimeMillis(), lastActivityEvent = "PHONE_COPY")
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        mainHandler.post { clipListener?.let { clipManager?.addPrimaryClipChangedListener(it) } }
+
+        bridgeClipListener = { item ->
+            if (item.source == "desktop") {
+                _bridgeState.value = _bridgeState.value.copy(lastActivityTime = System.currentTimeMillis(), lastActivityEvent = "DESKTOP_SYNC")
+                mainHandler.post {
+                    try { clipManager?.setPrimaryClip(ClipData.newPlainText("Janus Desktop", item.text)) } catch (_: Exception) {}
+                }
+            }
+        }
+        bridgeClipListener?.let { JanusClipboardBridge.addListener(it) }
     }
 
     private fun stopBridge() {
-        try {
-            server?.stop()
-        } catch (_: Exception) {}
+        SovereignLogger.i(SovereignLogger.Category.BRIDGE, "Stopping JanusBridgeService")
+        try { server?.stop() } catch (_: Exception) {}
         server = null
-
         try {
-            if (clipListener != null) {
-                clipManager?.removePrimaryClipChangedListener(clipListener)
-                clipListener = null
-            }
-            if (bridgeClipListener != null) {
-                JanusClipboardBridge.removeListener(bridgeClipListener!!)
-                bridgeClipListener = null
-            }
+            clipListener?.let { clipManager?.removePrimaryClipChangedListener(it); clipListener = null }
+            bridgeClipListener?.let { JanusClipboardBridge.removeListener(it); bridgeClipListener = null }
         } catch (_: Exception) {}
-
-        try {
-            if (nsdRegistrationListener != null) {
-                nsdManager?.unregisterService(nsdRegistrationListener)
-                nsdRegistrationListener = null
-            }
-        } catch (_: Exception) {}
-
+        try { nsdRegistrationListener?.let { nsdManager?.unregisterService(it); nsdRegistrationListener = null } } catch (_: Exception) {}
         try {
             if (wifiLock?.isHeld == true) wifiLock?.release()
             if (multicastLock?.isHeld == true) multicastLock?.release()
@@ -249,84 +239,10 @@ class JanusBridgeService : Service() {
         stopSelf()
     }
 
-    private fun registerNsd(port: Int) {
-        nsdManager = getSystemService(Context.NSD_SERVICE) as? NsdManager ?: return
-        val serviceInfo = NsdServiceInfo().apply {
-            serviceName = "Janus Bridge"
-            serviceType = "_janus._tcp."
-            setPort(port)
-        }
-
-        nsdRegistrationListener = object : NsdManager.RegistrationListener {
-            override fun onServiceRegistered(serviceInfo: NsdServiceInfo?) {}
-            override fun onRegistrationFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {}
-            override fun onServiceUnregistered(serviceInfo: NsdServiceInfo?) {}
-            override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {}
-        }
-
-        try {
-            nsdManager?.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, nsdRegistrationListener)
-        } catch (_: Exception) {}
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Janus Sovereign Bridge",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Active wireless desktop connection & file bridge"
-                setShowBadge(false)
-            }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(channel)
-        }
-    }
-
-    private fun buildNotification(ip: String, port: Int, pin: String, clients: Int = 0): Notification {
-        val tapIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val stopIntent = PendingIntent.getService(
-            this,
-            1,
-            Intent(this, JanusBridgeService::class.java).apply { action = ACTION_STOP },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val title = if (clients > 0) {
-            "Janus: $clients Desktop${if (clients > 1) "s" else ""} Linked"
-        } else {
-            "Janus Bridge Active: http://$ip:$port"
-        }
-
-        val text = if (clients > 0) {
-            "http://$ip:$port • Live Bi-Directional Sync Active"
-        } else {
-            "Pairing PIN: $pin • Drag & Drop Ready"
-        }
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_upload_done)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setContentIntent(tapIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Bridge", stopIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
-    }
-
     private fun updateNotification(ip: String, port: Int, pin: String, clients: Int) {
         if (!_bridgeState.value.isRunning) return
         val manager = getSystemService(NotificationManager::class.java)
-        val notification = buildNotification(ip, port, pin, clients)
-        manager?.notify(NOTIFICATION_ID, notification)
+        manager?.notify(NOTIFICATION_ID, JanusServiceHelper.buildNotification(this, ip, port, pin, clients))
     }
 
     override fun onDestroy() {
