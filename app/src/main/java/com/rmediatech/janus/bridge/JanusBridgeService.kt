@@ -164,7 +164,7 @@ class JanusBridgeService : Service() {
             }
         }
         try {
-            httpServer.start()
+            httpServer.start(0, false)
             server = httpServer
             SovereignLogger.i(SovereignLogger.Category.BRIDGE, "JanusHttpServer listening on http://$ip:$port (PIN=${globalAuthToken.pairingPin})")
         } catch (e: Exception) {

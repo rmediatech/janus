@@ -244,6 +244,10 @@ class JanusWebSocketManager(
         }
 
         override fun onException(exception: IOException?) {
+            if (exception is java.net.SocketTimeoutException && isOpen) {
+                // Ignore transient socket read timeout if socket is still active
+                return
+            }
             evictSocket(this, "IO_EXCEPTION: ${exception?.message ?: "broken pipe"}")
         }
     }

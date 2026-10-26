@@ -139,6 +139,98 @@
         .logcat-line-error { color: #FF5555; }
         .logcat-line-warn { color: #FFAA00; }
         .logcat-line-info { color: #55FFFF; }
+
+        /* Pairing PIN Modal & Auth Badge */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 14, 23, 0.88);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .modal-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--accent);
+            box-shadow: 0 0 35px rgba(0, 245, 255, 0.2);
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 440px;
+            width: 90%;
+            text-align: center;
+        }
+        .modal-logo {
+            font-size: 26px;
+            font-weight: 900;
+            letter-spacing: 3px;
+            color: var(--accent);
+            margin-bottom: 6px;
+        }
+        .modal-subtitle {
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            color: var(--accent-amber);
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+        .modal-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 22px;
+            line-height: 1.5;
+        }
+        .pin-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-base);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-family: monospace;
+            font-size: 22px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            margin-bottom: 12px;
+        }
+        .pin-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 12px rgba(0, 245, 255, 0.25);
+        }
+        .modal-error {
+            color: var(--danger);
+            font-size: 13px;
+            margin-bottom: 14px;
+            min-height: 18px;
+        }
+        .auth-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(31, 41, 55, 0.85);
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .auth-badge:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .auth-badge b {
+            color: var(--accent);
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
@@ -152,7 +244,10 @@
         <div class="telemetry">
             <span class="telemetry-item"><span class="dot"></span> <span id="tel-device">Connecting...</span></span>
             <span class="telemetry-item">Storage: <b id="tel-storage">--</b></span>
-            <span class="telemetry-item">Bridge: <b id="tel-ws">WS Active</b></span>
+            <span class="telemetry-item">Bridge: <b id="tel-ws">WS Inactive</b></span>
+            <div id="auth-badge" class="auth-badge" onclick="showAuthModal()" title="Click to view or change Pairing PIN">
+                <span>🔑</span> <b id="auth-pin-display">PIN</b>
+            </div>
         </div>
     </header>
 
@@ -222,12 +317,106 @@
         </section>
     </main>
 
+    <!-- Pairing PIN Modal -->
+    <div id="auth-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-logo">JANUS</div>
+            <div class="modal-subtitle">SOVEREIGN WORKSTATION PAIRING</div>
+            <p class="modal-desc">Enter the Pairing PIN displayed on your Android device (e.g. <b>JNX-B3AN</b>) to unlock access.</p>
+            <input type="text" id="auth-pin-input" class="pin-input" placeholder="JNX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="16" onkeydown="if(event.key==='Enter') submitAuthPin()">
+            <div id="auth-error-msg" class="modal-error"></div>
+            <button class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 14px; letter-spacing: 1px;" onclick="submitAuthPin()">CONNECT TO DEVICE</button>
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 16px;">Zero Cloud • Local LAN Peer-to-Peer • 100% Sovereign</p>
+        </div>
+    </div>
+
     <script>
         let currentPath = '';
-        let authToken = new URLSearchParams(window.location.search).get('token') || '';
-        let ws;
+        let urlToken = new URLSearchParams(window.location.search).get('token');
+        let authToken = (urlToken || localStorage.getItem('janus_pairing_token') || '').trim();
+        if (urlToken) {
+            localStorage.setItem('janus_pairing_token', urlToken.trim());
+        }
+
+        let ws = null;
+        let wsPingInterval = null;
         let logcatActive = false;
         let allLogcatLines = [];
+
+        function updateAuthBadge() {
+            const badge = document.getElementById('auth-pin-display');
+            if (badge) {
+                badge.innerText = authToken ? authToken : 'Enter PIN';
+            }
+        }
+
+        function showAuthModal(errMsg = '') {
+            const modal = document.getElementById('auth-modal');
+            const errDiv = document.getElementById('auth-error-msg');
+            const input = document.getElementById('auth-pin-input');
+            if (modal) modal.style.display = 'flex';
+            if (errDiv) {
+                errDiv.innerText = errMsg;
+                errDiv.style.display = errMsg ? 'block' : 'none';
+                errDiv.style.color = 'var(--danger)';
+            }
+            if (input) {
+                if (authToken && !input.value) input.value = authToken;
+                setTimeout(() => input.focus(), 100);
+            }
+        }
+
+        function hideAuthModal() {
+            const modal = document.getElementById('auth-modal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        async function submitAuthPin() {
+            const input = document.getElementById('auth-pin-input');
+            const errDiv = document.getElementById('auth-error-msg');
+            const pin = (input ? input.value : '').trim().toUpperCase();
+            if (!pin) {
+                if (errDiv) {
+                    errDiv.innerText = 'Please enter the pairing PIN from your phone.';
+                    errDiv.style.display = 'block';
+                    errDiv.style.color = 'var(--danger)';
+                }
+                return;
+            }
+
+            try {
+                if (errDiv) {
+                    errDiv.innerText = 'Verifying with device...';
+                    errDiv.style.display = 'block';
+                    errDiv.style.color = 'var(--accent)';
+                }
+                const res = await fetch('/api/v1/auth/status?token=' + encodeURIComponent(pin));
+                if (res.ok) {
+                    const data = await res.json();
+                    authToken = pin;
+                    localStorage.setItem('janus_pairing_token', pin);
+                    updateAuthBadge();
+                    hideAuthModal();
+                    document.getElementById('tel-device').innerText = `${data.deviceBrand} ${data.deviceName} (Android ${data.androidVersion})`;
+                    document.getElementById('tel-storage').innerText = data.storageFormatted;
+                    loadFiles('');
+                    fetchClipboardHistory();
+                    initWebSocket();
+                } else {
+                    if (errDiv) {
+                        errDiv.style.color = 'var(--danger)';
+                        errDiv.innerText = 'Authentication failed: Invalid PIN. Check the code on your phone.';
+                        errDiv.style.display = 'block';
+                    }
+                }
+            } catch (e) {
+                if (errDiv) {
+                    errDiv.style.color = 'var(--danger)';
+                    errDiv.innerText = 'Connection error: Unable to reach device on this network.';
+                    errDiv.style.display = 'block';
+                }
+            }
+        }
 
         function switchTab(tab) {
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -241,8 +430,19 @@
         }
 
         async function fetchStatus() {
+            if (!authToken) {
+                showAuthModal();
+                return;
+            }
             try {
-                const res = await fetch('/api/v1/auth/status?token=' + authToken);
+                const res = await fetch('/api/v1/auth/status?token=' + encodeURIComponent(authToken));
+                if (res.status === 401 || res.status === 403) {
+                    authToken = '';
+                    localStorage.removeItem('janus_pairing_token');
+                    updateAuthBadge();
+                    showAuthModal('PIN rejected or session expired. Please re-enter device Pairing PIN.');
+                    return;
+                }
                 if (res.ok) {
                     const data = await res.json();
                     document.getElementById('tel-device').innerText = `${data.deviceBrand} ${data.deviceName} (Android ${data.androidVersion})`;
@@ -254,15 +454,25 @@
         }
 
         async function loadFiles(path = '') {
+            if (!authToken) {
+                showAuthModal();
+                return;
+            }
             currentPath = path;
             renderBreadcrumbs();
             const tbody = document.getElementById('file-tbody');
             tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Loading...</td></tr>';
             try {
-                const res = await fetch(`/api/v1/fs/list?path=${encodeURIComponent(path)}&token=${authToken}`);
+                const res = await fetch(`/api/v1/fs/list?path=${encodeURIComponent(path)}&token=${encodeURIComponent(authToken)}`);
+                if (res.status === 401 || res.status === 403) {
+                    showAuthModal('PIN authentication required to access device storage.');
+                    return;
+                }
                 const data = await res.json();
                 if (data.entries) {
                     renderFileTable(data.entries);
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger);">Failed to load directory.</td></tr>';
                 }
             } catch (e) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger);">Failed to load directory.</td></tr>';
@@ -317,17 +527,38 @@
         }
 
         function downloadFile(path) {
-            window.location.href = `/api/v1/fs/download?path=${encodeURIComponent(path)}&token=${authToken}`;
+            window.location.href = `/api/v1/fs/download?path=${encodeURIComponent(path)}&token=${encodeURIComponent(authToken)}`;
         }
 
         function downloadZip(path = currentPath) {
-            window.location.href = `/api/v1/fs/zip?path=${encodeURIComponent(path)}&token=${authToken}`;
+            window.location.href = `/api/v1/fs/zip?path=${encodeURIComponent(path)}&token=${encodeURIComponent(authToken)}`;
         }
 
         async function deleteEntry(path) {
             if (!confirm(`Are you sure you want to delete ${path}?`)) return;
-            const res = await fetch(`/api/v1/fs/delete?path=${encodeURIComponent(path)}&token=${authToken}`, { method: 'POST' });
+            const res = await fetch(`/api/v1/fs/delete?path=${encodeURIComponent(path)}&token=${encodeURIComponent(authToken)}`, { method: 'POST' });
+            if (res.status === 401) {
+                showAuthModal('PIN authentication required.');
+                return;
+            }
             loadFiles(currentPath);
+        }
+
+        async function installApk(path) {
+            if (!confirm(`Trigger Android Package Installer on device for:\n${path}?`)) return;
+            try {
+                const res = await fetch(`/api/v1/install?path=${encodeURIComponent(path)}&token=${encodeURIComponent(authToken)}`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    alert('Package installer triggered on your Android device! Complete installation on screen.');
+                } else {
+                    alert('Failed to install APK: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Failed to reach device: ' + e.message);
+            }
         }
 
         // Drop zone handlers
@@ -349,17 +580,27 @@
         }
 
         async function uploadFiles(files) {
+            if (!authToken) {
+                showAuthModal('PIN required to upload files.');
+                return;
+            }
             for (const file of files) {
                 const formData = new FormData();
                 formData.append('file', file);
                 const isApk = file.name.endsWith('.apk');
-                const endpoint = isApk ? '/api/v1/install' : `/api/v1/fs/upload?path=${encodeURIComponent(currentPath)}&fileName=${encodeURIComponent(file.name)}&token=${authToken}`;
+                const endpoint = isApk 
+                    ? `/api/v1/install?token=${encodeURIComponent(authToken)}` 
+                    : `/api/v1/fs/upload?path=${encodeURIComponent(currentPath)}&fileName=${encodeURIComponent(file.name)}&token=${encodeURIComponent(authToken)}`;
 
                 try {
-                    await fetch(endpoint, {
+                    const res = await fetch(endpoint, {
                         method: 'POST',
                         body: formData
                     });
+                    if (res.status === 401) {
+                        showAuthModal('PIN required to upload files.');
+                        return;
+                    }
                 } catch (e) {
                     console.error('Upload failed', e);
                 }
@@ -369,22 +610,33 @@
 
         // Clipboard
         async function pushClipboard() {
+            if (!authToken) {
+                showAuthModal();
+                return;
+            }
             const text = document.getElementById('clip-input').value;
             if (!text.trim()) return;
-            await fetch(`/api/v1/clipboard?token=${authToken}`, {
+            const res = await fetch(`/api/v1/clipboard?token=${encodeURIComponent(authToken)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text })
             });
+            if (res.status === 401) {
+                showAuthModal('PIN authentication required for clipboard.');
+                return;
+            }
             document.getElementById('clip-input').value = '';
             fetchClipboardHistory();
         }
 
         async function fetchClipboardHistory() {
+            if (!authToken) return;
             try {
-                const res = await fetch(`/api/v1/clipboard?token=${authToken}`);
-                const data = await res.json();
-                renderClipboardHistory(data.history || []);
+                const res = await fetch(`/api/v1/clipboard?token=${encodeURIComponent(authToken)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    renderClipboardHistory(data.history || []);
+                }
             } catch (e) {}
         }
 
@@ -404,17 +656,38 @@
 
         // WebSockets
         function initWebSocket() {
+            if (!authToken) {
+                document.getElementById('tel-ws').innerText = 'Auth Required';
+                document.getElementById('tel-ws').style.color = 'var(--text-muted)';
+                return;
+            }
+            if (wsPingInterval) {
+                clearInterval(wsPingInterval);
+                wsPingInterval = null;
+            }
+            if (ws) {
+                try { ws.close(); } catch (_) {}
+            }
             const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             try {
                 ws = new WebSocket(`${proto}//${window.location.host}/ws?token=${encodeURIComponent(authToken)}`);
                 ws.onopen = () => {
                     document.getElementById('tel-ws').innerText = 'WS Live';
                     document.getElementById('tel-ws').style.color = 'var(--success)';
+                    // 2500ms heartbeat keep-alive prevents any socket idle read timeouts
+                    wsPingInterval = setInterval(() => {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            try { ws.send(JSON.stringify({ action: 'ping' })); } catch (_) {}
+                        }
+                    }, 2500);
                 };
                 ws.onclose = () => {
+                    if (wsPingInterval) { clearInterval(wsPingInterval); wsPingInterval = null; }
                     document.getElementById('tel-ws').innerText = 'Reconnecting...';
                     document.getElementById('tel-ws').style.color = 'var(--accent-amber)';
-                    setTimeout(initWebSocket, 2000);
+                    if (authToken) {
+                        setTimeout(initWebSocket, 2000);
+                    }
                 };
                 ws.onerror = () => {
                     try { ws.close(); } catch(e) {}
@@ -430,12 +703,14 @@
                     } catch (e) {}
                 };
             } catch (e) {
-                setTimeout(initWebSocket, 3000);
+                if (authToken) setTimeout(initWebSocket, 3000);
             }
         }
 
         // Periodic background poll guaranteeing updates even if socket buffers or sleeps
-        setInterval(fetchClipboardHistory, 1500);
+        setInterval(() => {
+            if (authToken) fetchClipboardHistory();
+        }, 2000);
 
         // Logcat
         function toggleLogcat() {
@@ -466,10 +741,15 @@
         }
 
         // Initial Boot
-        fetchStatus();
-        loadFiles('');
-        fetchClipboardHistory();
-        initWebSocket();
+        updateAuthBadge();
+        if (authToken) {
+            fetchStatus();
+            loadFiles('');
+            fetchClipboardHistory();
+            initWebSocket();
+        } else {
+            showAuthModal();
+        }
     </script>
     <footer style="background: var(--bg-surface); border-top: 1px solid var(--border); padding: 14px 24px; text-align: center; font-size: 12px; color: var(--text-muted); margin-top: auto;">
         Janus Sovereign Bridge v1.0.0 • Crafted by <a href="https://rmediatech.com" target="_blank" style="color: var(--accent); text-decoration: none; font-weight: bold;">RMediaTech</a> • Zero-Cloud Privacy & Autonomous Mobile Workstation

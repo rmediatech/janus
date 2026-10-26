@@ -236,16 +236,20 @@ class JanusHttpServer(
         val files = HashMap<String, String>()
         session.parseBody(files)
         val tempApkPath = files["apk"] ?: files["file"]
-            ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "No APK file uploaded"))
+        val apkFile = if (tempApkPath != null) {
+            File(tempApkPath)
+        } else {
+            val relPath = session.parameters["path"]?.firstOrNull() ?: ""
+            if (relPath.isNotBlank()) fileSystem.getFile(relPath) else null
+        } ?: return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "No APK file uploaded or specified"))
 
-        val tempFile = File(tempApkPath)
-        if (!ApkSideloadValidator.validateApkFile(tempFile)) {
+        if (!ApkSideloadValidator.validateApkFile(apkFile)) {
             SovereignLogger.w(SovereignLogger.Category.SECURITY, "Rejected invalid APK sideload archive")
-            return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "Uploaded file is not a valid APK archive"))
+            return jsonResponse(Response.Status.BAD_REQUEST, JSONObject().put("error", "Target file is not a valid APK archive"))
         }
 
         val destApk = File(context.cacheDir, "sideload_${System.currentTimeMillis()}.apk")
-        tempFile.copyTo(destApk, overwrite = true)
+        apkFile.copyTo(destApk, overwrite = true)
         context.startActivity(ApkSideloadValidator.createInstallIntent(context, destApk))
         SovereignLogger.i(SovereignLogger.Category.BRIDGE, "Launched APK PackageInstaller for ${destApk.name}")
         return jsonResponse(Response.Status.OK, JSONObject().put("success", true).put("message", "Package installer launched on device"))
