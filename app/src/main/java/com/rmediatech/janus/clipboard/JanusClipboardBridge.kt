@@ -60,9 +60,10 @@ object JanusClipboardBridge {
             history.removeAt(history.size - 1)
         }
         _latestState.value = item
-        SovereignLogger.d(
-            SovereignLogger.Category.BRIDGE,
-            "Clipboard synced from $source (${clean.length} chars)"
+        val preview = if (clean.length > 40) "${clean.take(40)}..." else clean
+        SovereignLogger.i(
+            SovereignLogger.Category.CLIPBOARD,
+            "Clipboard synced from $source: '$preview' (${clean.length} chars)"
         )
 
         // Notify subscribers

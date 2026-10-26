@@ -158,9 +158,11 @@ class JanusBridgeService : Service() {
             onClientCountChanged = { count ->
                 _bridgeState.value = _bridgeState.value.copy(connectedClients = count, lastActivityTime = System.currentTimeMillis())
                 updateNotification(_bridgeState.value.localIp, port, globalAuthToken.pairingPin, count)
+                SovereignLogger.i(SovereignLogger.Category.BRIDGE, "Active client count changed: $count")
             }
             onActivityEvent = { event ->
                 _bridgeState.value = _bridgeState.value.copy(lastActivityTime = System.currentTimeMillis(), lastActivityEvent = event)
+                SovereignLogger.d(SovereignLogger.Category.BRIDGE, "Activity event: $event")
             }
         }
         try {

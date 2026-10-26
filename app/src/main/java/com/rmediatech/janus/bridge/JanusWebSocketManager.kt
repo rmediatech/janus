@@ -35,6 +35,7 @@ class JanusWebSocketManager(
      */
     fun broadcast(message: String) {
         val evicted = mutableListOf<JanusWebSocket>()
+        SovereignLogger.d(SovereignLogger.Category.WEBSOCKET, "WS BROADCAST (${connectedWebSockets.size} clients): ${if (message.length > 60) message.take(60) + "..." else message}")
         for (ws in connectedWebSockets) {
             if (!ws.isOpen) {
                 evicted.add(ws)
@@ -213,27 +214,37 @@ class JanusWebSocketManager(
                 val payload = message.textPayload ?: return
                 if (payload.length > 131_072) return // Bound incoming WS frame against allocation bombs
                 val json = JSONObject(payload)
-                when (json.optString("action")) {
+                val action = json.optString("action")
+                when (action) {
                     "start_logcat" -> {
+                        SovereignLogger.i(SovereignLogger.Category.WEBSOCKET, "WS ACTION: start_logcat from $remoteIp")
                         if (!isSubscribedToLogcat) {
                             isSubscribedToLogcat = true
                             JanusLogcatStreamer.addListener(logcatListener)
                         }
                     }
-                    "stop_logcat" -> cleanupSubscriptions()
+                    "stop_logcat" -> {
+                        SovereignLogger.i(SovereignLogger.Category.WEBSOCKET, "WS ACTION: stop_logcat from $remoteIp")
+                        cleanupSubscriptions()
+                    }
                     "clipboard_push" -> {
                         val text = json.optString("text")
                         if (text.isNotBlank()) {
+                            SovereignLogger.i(SovereignLogger.Category.CLIPBOARD, "WS CLIPBOARD_PUSH (${text.length} chars) from $remoteIp")
                             JanusClipboardBridge.push(text, "desktop")
                         }
                     }
                     "ping" -> {
+                        SovereignLogger.d(SovereignLogger.Category.WEBSOCKET, "WS PING from $remoteIp -> pong")
                         val pong = JSONObject().apply {
                             put("type", "pong")
                             put("timestamp", System.currentTimeMillis())
                         }.toString()
                         send(pong)
                         flushSocket()
+                    }
+                    else -> {
+                        SovereignLogger.d(SovereignLogger.Category.WEBSOCKET, "WS MESSAGE action='$action' from $remoteIp")
                     }
                 }
             } catch (_: Exception) {}

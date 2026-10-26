@@ -24,13 +24,16 @@ object SovereignLogger {
         NETWORK,
         DISCOVERY,
         BRIDGE,
+        HTTP,
+        FS,
+        CLIPBOARD,
         WEBSOCKET,
         SECURITY
     }
 
     private const val LOGCAT_TAG = "Janus"
-    private const val MAX_LOG_SIZE_BYTES = 512 * 1024L // 512 KB
-    private const val RING_BUFFER_SIZE = 100
+    private const val MAX_LOG_SIZE_BYTES = 2 * 1024 * 1024L // 2 MB
+    private const val RING_BUFFER_SIZE = 1000
 
     private val ringBuffer = ConcurrentLinkedDeque<String>()
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
