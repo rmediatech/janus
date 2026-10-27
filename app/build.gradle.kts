@@ -21,9 +21,24 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = project.findProperty("SOVEREIGN_RELEASE_KEYSTORE") as? String
+                ?: "/home/emhcet/private/projects/desktop/android/keystore/sovereign-release.jks"
+            val aliasName = project.findProperty("SOVEREIGN_RELEASE_ALIAS") as? String ?: "sovereign"
+            val pwd = project.findProperty("SOVEREIGN_RELEASE_PASSWORD") as? String ?: "SovereignRelease2026!"
+            
+            storeFile = file(keystorePath)
+            storePassword = pwd
+            keyAlias = aliasName
+            keyPassword = pwd
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
