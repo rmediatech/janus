@@ -1,5 +1,13 @@
 # 🏛️ Janus — Sovereign Workstation & Mobile Bridge
 
+<div align="center">
+
+[![Download Signed APK](https://img.shields.io/badge/Download-Signed%20APK%20(v1.0.0)-00F5FF?style=for-the-badge&logo=android&logoColor=black)](https://github.com/rmediatech/janus/releases/download/v1.0.0/janus-v1.0.0.apk)
+[![RMediaTech Official](https://img.shields.io/badge/RMediaTech-Official%20Fleet-FFB300?style=for-the-badge&logo=shield&logoColor=black)](https://rmediatech.com)
+[![Zero Cloud](https://img.shields.io/badge/Zero--Cloud-100%25%20Local-10B981?style=for-the-badge)](https://rmediatech.com)
+
+</div>
+
 > *"In ancient Rome, **Janus** was the guardian of doors, gates, transitions, and bridges—depicted with two faces looking simultaneously forward and backward. One face looking toward the desktop workstation; one face looking toward the mobile device."*
 
 **Janus** is an ultra-high-performance, zero-cloud, bidirectional workstation bridge for Android and Desktop (Linux / macOS / Windows). It turns your Android phone into an autonomous wireless developer workstation and file server—accessible instantly from any desktop web browser with zero cables, zero third-party cloud relays, and zero subscriptions.
