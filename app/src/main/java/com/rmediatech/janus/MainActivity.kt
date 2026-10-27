@@ -39,6 +39,15 @@ class MainActivity : ComponentActivity() {
 
         JanusPermissionHelper.requestRequiredPermissions(this, permissionLauncher)
 
+        // TV Remote Ergonomics: Auto-start bridge immediately when launched on TV/Leanback devices
+        val uiModeManager = getSystemService(UI_MODE_SERVICE) as? android.app.UiModeManager
+        val isTelevision = uiModeManager?.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+            || packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+        if (isTelevision) {
+            SovereignLogger.i(SovereignLogger.Category.LIFECYCLE, "Television environment detected — auto-starting JanusBridgeService")
+            JanusBridgeService.startService(this)
+        }
+
         setContent {
             JanusTheme {
                 val bridgeState by JanusBridgeService.bridgeState.collectAsState()

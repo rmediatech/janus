@@ -106,11 +106,13 @@
             font-weight: 500;
             transition: all 0.2s;
         }
+        .btn-xs { padding: 4px 10px; font-size: 12px; }
         .btn:hover { border-color: var(--accent); color: var(--accent); }
         .btn-primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
         .btn-primary:hover { opacity: 0.9; color: #000; }
         .btn-danger { color: var(--danger); border-color: rgba(239,68,68,0.3); }
         .btn-danger:hover { background: rgba(239,68,68,0.1); border-color: var(--danger); color: var(--danger); }
+        .parent-dir-row:hover td { background: rgba(0, 245, 255, 0.08) !important; cursor: pointer; }
 
         /* Clipboard Tab */
         .clip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
@@ -479,14 +481,46 @@
             }
         }
 
+        function getParentPath(path) {
+            if (!path) return '';
+            const parts = path.split('/').filter(Boolean);
+            parts.pop();
+            return parts.join('/');
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function escapeJs(str) {
+            return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+
         function renderBreadcrumbs() {
             const container = document.getElementById('breadcrumbs');
             const parts = currentPath.split('/').filter(Boolean);
-            let html = '<span class="crumb" onclick="navigateTo(\'\')">root</span>';
+            const parentPath = getParentPath(currentPath);
+
+            const upBtn = currentPath
+                ? `<button class="btn btn-xs" style="margin-right: 8px;" onclick="navigateTo('${escapeJs(parentPath)}')">⬆ Up</button>`
+                : '';
+
+            let html = upBtn + `<span class="crumb" onclick="navigateTo('')">root</span>`;
             let accumulated = '';
-            for (const part of parts) {
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
                 accumulated += (accumulated ? '/' : '') + part;
-                html += ` / <span class="crumb" onclick="navigateTo('${accumulated}')">${part}</span>`;
+                const isLast = (i === parts.length - 1);
+                if (isLast) {
+                    html += ` / <span class="crumb">${escapeHtml(part)}</span>`;
+                } else {
+                    html += ` / <span class="crumb" onclick="navigateTo('${escapeJs(accumulated)}')">${escapeHtml(part)}</span>`;
+                }
             }
             container.innerHTML = html;
         }
@@ -497,33 +531,51 @@
 
         function renderFileTable(entries) {
             const tbody = document.getElementById('file-tbody');
+            let parentRow = '';
+            if (currentPath) {
+                const parentPath = getParentPath(currentPath);
+                parentRow = `
+                    <tr class="parent-dir-row" onclick="navigateTo('${escapeJs(parentPath)}')">
+                        <td colspan="4">
+                            <div class="file-name" style="color: var(--accent); font-weight: 600;">
+                                <span>📁</span>
+                                <b>.. (Parent Directory)</b>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+
             if (entries.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Empty folder</td></tr>';
+                tbody.innerHTML = parentRow + '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Empty folder</td></tr>';
                 return;
             }
-            tbody.innerHTML = entries.map(item => {
+
+            const rows = entries.map(item => {
                 const icon = item.isDirectory ? '📁' : (item.isApk ? '📦' : '📄');
                 const badge = item.isApk ? '<span class="apk-badge">APK</span>' : '';
-                const clickHandler = item.isDirectory ? `onclick="navigateTo('${item.path}')"` : '';
+                const clickHandler = item.isDirectory ? `onclick="navigateTo('${escapeJs(item.path)}')"` : '';
                 return `
                     <tr>
                         <td>
                             <div class="file-name" ${clickHandler}>
                                 <span>${icon}</span>
-                                <b>${item.name}</b>
+                                <b>${escapeHtml(item.name)}</b>
                                 ${badge}
                             </div>
                         </td>
                         <td>${item.formattedSize}</td>
                         <td style="color: var(--text-muted); font-size: 12px;">${item.mimeType}</td>
                         <td style="text-align: right;">
-                            ${item.isApk ? `<button class="btn btn-primary" onclick="installApk('${item.path}')">Install</button>` : ''}
-                            ${!item.isDirectory ? `<button class="btn" onclick="downloadFile('${item.path}')">Download</button>` : `<button class="btn" onclick="downloadZip('${item.path}')">.ZIP</button>`}
-                            <button class="btn btn-danger" onclick="deleteEntry('${item.path}')">Delete</button>
+                            ${item.isApk ? `<button class="btn btn-primary btn-xs" onclick="installApk('${escapeJs(item.path)}')">Install</button>` : ''}
+                            ${!item.isDirectory ? `<button class="btn btn-xs" onclick="downloadFile('${escapeJs(item.path)}')">Download</button>` : `<button class="btn btn-xs" onclick="downloadZip('${escapeJs(item.path)}')">.ZIP</button>`}
+                            <button class="btn btn-danger btn-xs" onclick="deleteEntry('${escapeJs(item.path)}')">Delete</button>
                         </td>
                     </tr>
                 `;
             }).join('');
+
+            tbody.innerHTML = parentRow + rows;
         }
 
         function downloadFile(path) {
