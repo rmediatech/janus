@@ -8,7 +8,17 @@
 
 </div>
 
+<p align="center">
+  <img src="assets/janus_emblem.svg" alt="Janus Mathematical Emblem" width="180" />
+</p>
+
 > *"In ancient Rome, **Janus** was the guardian of doors, gates, transitions, and bridges—depicted with two faces looking simultaneously forward and backward. One face looking toward the desktop workstation; one face looking toward the mobile device."*
+
+### 🏛️ Mythological Lineage & Geometric Rationale
+
+* **The Two-Faced Deity of Horizons**: In Roman religion, **Janus** (*Ianus Pater*) was the god of beginnings, gates, transitions, time, duality, doorways, passages, and endings. Uniquely represented with two bearded faces gazing in opposite directions—one observing the past, the other contemplating the future—Janus held dominion over every threshold and passage between distinct realms.
+* **Sovereign Architectural Role**: In our ecosystem, **`janus`** bridges the Android mobile sphere with the desktop workstation sphere. It enables bidirectional clipboard sync, remote APK sideloading, live Logcat streaming, and Scoped Storage file transfers over local peer-to-peer WebSockets without ever touching third-party cloud infrastructure.
+* **Mathematical Crest Geometry**: Generated purely from mathematical parametric equations on a transparent background, the emblem features **Twin Mirrored Euler / Clothoid Spirals** ($x(t) = \int \cos(u^2)du, y(t) = \int \sin(u^2)du$) gazing toward opposing horizons, connected by a central threshold arch and dual aperture observation rings.
 
 **Janus** is an ultra-high-performance, zero-cloud, bidirectional workstation bridge for Android and Desktop (Linux / macOS / Windows). It turns your Android phone into an autonomous wireless developer workstation and file server—accessible instantly from any desktop web browser with zero cables, zero third-party cloud relays, and zero subscriptions.
 
