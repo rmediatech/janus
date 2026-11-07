@@ -2,7 +2,8 @@
 
 <div align="center">
 
-[![Download Signed APK](https://img.shields.io/badge/Download-Signed%20APK%20(v1.0.0)-00F5FF?style=for-the-badge&logo=android&logoColor=black)](https://github.com/rmediatech/janus/releases/download/v1.0.0/janus-v1.0.0.apk)
+[![Download Signed APK](https://img.shields.io/badge/Download-Signed%20APK%20(v1.1.0)-00F5FF?style=for-the-badge&logo=android&logoColor=black)](https://github.com/rmediatech/janus/releases/download/v1.1.0/janus-v1.1.0.apk)
+[![Tests](https://img.shields.io/badge/TDD%20Tests-36%2F36%20Passing-10B981?style=for-the-badge)](https://github.com/rmediatech/janus)
 [![RMediaTech Official](https://img.shields.io/badge/RMediaTech-Official%20Fleet-FFB300?style=for-the-badge&logo=shield&logoColor=black)](https://rmediatech.com)
 [![Zero Cloud](https://img.shields.io/badge/Zero--Cloud-100%25%20Local-10B981?style=for-the-badge)](https://rmediatech.com)
 

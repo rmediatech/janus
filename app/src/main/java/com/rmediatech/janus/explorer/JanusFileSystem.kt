@@ -1,13 +1,20 @@
 package com.rmediatech.janus.explorer
 
+import com.rmediatech.janus.installer.ApkSideloadValidator
 import com.rmediatech.janus.security.PathTraversalShield
 import java.io.File
 import java.io.FileInputStream
 import java.io.OutputStream
+import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 class JanusFileSystem(val rootDir: File) {
+
+    companion object {
+        /** Maximum entries emitted in a single streamed ZIP archive (`SOVEREIGN-ARCHIVE-BOUND-01`). */
+        const val MAX_STREAM_ARCHIVE_ENTRIES = 10_000
+    }
 
     /**
      * Lists directory entries for [relativeDir].
@@ -44,6 +51,14 @@ class JanusFileSystem(val rootDir: File) {
     }
 
     /**
+     * Computes the streaming SHA-256 hex digest of a file inside the jail (`SOVEREIGN-FILE-HASH-01`).
+     */
+    fun computeFileSha256(relativePath: String): String? {
+        val target = getFile(relativePath) ?: return null
+        return ApkSideloadValidator.computeSha256Hex(target)
+    }
+
+    /**
      * Creates a new directory at [parentRelative]/[dirName].
      */
     fun createDirectory(parentRelative: String, dirName: String): Boolean {
@@ -65,7 +80,7 @@ class JanusFileSystem(val rootDir: File) {
 
     /**
      * Streams the contents of [relativeDir] as a Zip archive directly to [outStream].
-     * Zero-buffering: Writes chunks on the fly.
+     * Zero-buffering: Writes chunks on the fly while skipping symbolic links and bounding entry count.
      */
     fun streamZipArchive(relativeDir: String, outStream: OutputStream) {
         val target = PathTraversalShield.resolveSafePath(rootDir, relativeDir) ?: return
@@ -73,6 +88,7 @@ class JanusFileSystem(val rootDir: File) {
 
         val zipOut = ZipOutputStream(outStream)
         val buffer = ByteArray(8192)
+        var emittedEntries = 0
 
         try {
             if (target.isFile) {
@@ -85,9 +101,12 @@ class JanusFileSystem(val rootDir: File) {
                 }
                 zipOut.closeEntry()
             } else {
-                target.walkTopDown().forEach { file ->
+                for (file in target.walkTopDown()) {
+                    if (emittedEntries >= MAX_STREAM_ARCHIVE_ENTRIES) break
+                    if (Files.isSymbolicLink(file.toPath())) continue
                     val entryName = file.relativeTo(target).path.replace('\\', '/')
-                    if (entryName.isNotEmpty()) {
+                    if (entryName.isNotEmpty() && !ApkSideloadValidator.isUnsafeZipEntryName(entryName)) {
+                        emittedEntries++
                         if (file.isDirectory) {
                             zipOut.putNextEntry(ZipEntry("$entryName/"))
                             zipOut.closeEntry()

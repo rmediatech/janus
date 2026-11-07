@@ -192,4 +192,40 @@ class AdversarialJanusSecurityTest {
         manager.closeAll()
         assertEquals(0, manager.activeClientCount)
     }
+
+    // --- THREAT MODEL 8: APK ZIP-SLIP & STREAMING SHA-256 PROVENANCE (SOVEREIGN-APK-ZIPSLIP-01) ---
+
+    @Test
+    fun testApkZipSlipTraversalAndMissingDexRejected() {
+        val zipSlipApk = tempFolder.newFile("zipslip.apk")
+        java.util.zip.ZipOutputStream(java.io.FileOutputStream(zipSlipApk)).use { zipOut ->
+            zipOut.putNextEntry(java.util.zip.ZipEntry("AndroidManifest.xml"))
+            zipOut.write("manifest".toByteArray())
+            zipOut.closeEntry()
+            zipOut.putNextEntry(java.util.zip.ZipEntry("classes.dex"))
+            zipOut.write(ByteArray(256))
+            zipOut.closeEntry()
+            zipOut.putNextEntry(java.util.zip.ZipEntry("../../data/local/tmp/pwn.so"))
+            zipOut.write(ByteArray(128))
+            zipOut.closeEntry()
+        }
+        assertFalse(
+            "APK containing Zip-Slip traversal entry must be rejected",
+            com.rmediatech.janus.installer.ApkSideloadValidator.validateApkFile(zipSlipApk)
+        )
+
+        val validApk = tempFolder.newFile("clean.apk")
+        java.util.zip.ZipOutputStream(java.io.FileOutputStream(validApk)).use { zipOut ->
+            zipOut.putNextEntry(java.util.zip.ZipEntry("AndroidManifest.xml"))
+            zipOut.write("manifest".toByteArray())
+            zipOut.closeEntry()
+            zipOut.putNextEntry(java.util.zip.ZipEntry("classes.dex"))
+            zipOut.write(ByteArray(256))
+            zipOut.closeEntry()
+        }
+        assertTrue(com.rmediatech.janus.installer.ApkSideloadValidator.validateApkFile(validApk))
+        val digest = com.rmediatech.janus.installer.ApkSideloadValidator.computeSha256Hex(validApk)
+        assertNotNull(digest)
+        assertEquals(64, digest!!.length)
+    }
 }
