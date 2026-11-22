@@ -4,236 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Janus • Sovereign Workstation Bridge</title>
-    <style>
-        :root {
-            --bg-base: #0A0E17;
-            --bg-surface: #111827;
-            --bg-card: #1F2937;
-            --border: #374151;
-            --accent: #00F5FF;
-            --accent-amber: #F59E0B;
-            --text-main: #F9FAFB;
-            --text-muted: #9CA3AF;
-            --danger: #EF4444;
-            --success: #10B981;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif; }
-        body { background: var(--bg-base); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; }
-
-        header {
-            background: var(--bg-surface);
-            border-bottom: 1px solid var(--border);
-            padding: 12px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .brand { display: flex; align-items: center; gap: 12px; }
-        .brand-logo { font-size: 24px; font-weight: 900; letter-spacing: 2px; color: var(--accent); }
-        .brand-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(0,245,255,0.15); color: var(--accent); border: 1px solid var(--accent); }
-        
-        .telemetry { display: flex; gap: 18px; font-size: 13px; color: var(--text-muted); align-items: center; }
-        .telemetry-item b { color: var(--text-main); }
-        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--success); }
-
-        nav {
-            background: var(--bg-surface);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            padding: 0 24px;
-            gap: 8px;
-        }
-        .nav-tab {
-            padding: 12px 20px;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-muted);
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-        }
-        .nav-tab:hover { color: var(--text-main); }
-        .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-        main { flex: 1; padding: 24px; max-width: 1400px; margin: 0 auto; width: 100%; }
-
-        .panel { display: none; }
-        .panel.active { display: block; }
-
-        /* Explorer Tab */
-        .breadcrumbs {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 16px;
-            font-size: 14px;
-            background: var(--bg-surface);
-            padding: 10px 16px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
-        .crumb { color: var(--accent); cursor: pointer; text-decoration: underline; }
-        .crumb:last-child { color: var(--text-main); text-decoration: none; cursor: default; }
-
-        .drop-zone {
-            border: 2px dashed var(--border);
-            border-radius: 8px;
-            padding: 24px;
-            text-align: center;
-            margin-bottom: 20px;
-            background: rgba(31, 41, 55, 0.4);
-            transition: border-color 0.2s;
-        }
-        .drop-zone.dragover { border-color: var(--accent); background: rgba(0, 245, 255, 0.05); }
-
-        .file-table { width: 100%; border-collapse: collapse; background: var(--bg-surface); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
-        .file-table th { background: var(--bg-card); text-align: left; padding: 12px 16px; font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
-        .file-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
-        .file-table tr:hover td { background: rgba(255,255,255,0.02); }
-        .file-name { display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-main); }
-        .file-name:hover { color: var(--accent); }
-        .apk-badge { background: rgba(245,158,11,0.2); color: var(--accent-amber); font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--accent-amber); margin-left: 8px; }
-
-        .btn {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 6px 14px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .btn-xs { padding: 4px 10px; font-size: 12px; }
-        .btn:hover { border-color: var(--accent); color: var(--accent); }
-        .btn-primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
-        .btn-primary:hover { opacity: 0.9; color: #000; }
-        .btn-danger { color: var(--danger); border-color: rgba(239,68,68,0.3); }
-        .btn-danger:hover { background: rgba(239,68,68,0.1); border-color: var(--danger); color: var(--danger); }
-        .parent-dir-row:hover td { background: rgba(0, 245, 255, 0.08) !important; cursor: pointer; }
-
-        /* Clipboard Tab */
-        .clip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-        .clip-box { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
-        .clip-box h3 { font-size: 16px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
-        textarea { width: 100%; height: 160px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 6px; color: var(--text-main); padding: 12px; font-family: monospace; font-size: 14px; resize: vertical; margin-bottom: 12px; }
-        textarea:focus { outline: none; border-color: var(--accent); }
-
-        .clip-history-item {
-            background: var(--bg-base);
-            border: 1px solid var(--border);
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-            font-family: monospace;
-            font-size: 13px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        /* Logcat Tab */
-        .logcat-container { background: #000; border: 1px solid var(--border); border-radius: 8px; height: 600px; display: flex; flex-direction: column; }
-        .logcat-toolbar { background: var(--bg-surface); padding: 10px 16px; display: flex; gap: 12px; border-bottom: 1px solid var(--border); }
-        .logcat-console { flex: 1; padding: 12px; overflow-y: auto; font-family: "Courier New", Courier, monospace; font-size: 12px; line-height: 1.5; color: #00FF66; white-space: pre-wrap; }
-        .logcat-line-error { color: #FF5555; }
-        .logcat-line-warn { color: #FFAA00; }
-        .logcat-line-info { color: #55FFFF; }
-
-        /* Pairing PIN Modal & Auth Badge */
-        .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(10, 14, 23, 0.88);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-        }
-        .modal-card {
-            background: var(--bg-surface);
-            border: 1px solid var(--accent);
-            box-shadow: 0 0 35px rgba(0, 245, 255, 0.2);
-            border-radius: 12px;
-            padding: 32px;
-            max-width: 440px;
-            width: 90%;
-            text-align: center;
-        }
-        .modal-logo {
-            font-size: 26px;
-            font-weight: 900;
-            letter-spacing: 3px;
-            color: var(--accent);
-            margin-bottom: 6px;
-        }
-        .modal-subtitle {
-            font-size: 11px;
-            letter-spacing: 1.5px;
-            color: var(--accent-amber);
-            font-weight: 700;
-            text-transform: uppercase;
-            margin-bottom: 16px;
-        }
-        .modal-desc {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 22px;
-            line-height: 1.5;
-        }
-        .pin-input {
-            width: 100%;
-            padding: 12px 16px;
-            background: var(--bg-base);
-            border: 2px solid var(--border);
-            border-radius: 8px;
-            color: var(--text-main);
-            font-family: monospace;
-            font-size: 22px;
-            font-weight: 700;
-            text-align: center;
-            letter-spacing: 4px;
-            text-transform: uppercase;
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            margin-bottom: 12px;
-        }
-        .pin-input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 12px rgba(0, 245, 255, 0.25);
-        }
-        .modal-error {
-            color: var(--danger);
-            font-size: 13px;
-            margin-bottom: 14px;
-            min-height: 18px;
-        }
-        .auth-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(31, 41, 55, 0.85);
-            border: 1px solid var(--border);
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 12px;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .auth-badge:hover {
-            border-color: var(--accent);
-            color: var(--accent);
-        }
-        .auth-badge b {
-            color: var(--accent);
-            font-family: monospace;
-        }
-    </style>
+    <link rel="stylesheet" href="/css/janus.css">
+    <script src="/js/janus.js" defer></script>
 </head>
 <body>
 
@@ -241,7 +13,7 @@
         <div class="brand">
             <span class="brand-logo">JANUS</span>
             <span class="brand-badge">SOVEREIGN BRIDGE</span>
-            <a href="https://rmediatech.com" target="_blank" style="color: var(--accent); font-size: 12px; text-decoration: none; opacity: 0.85; margin-left: 8px;">by RMediaTech</a>
+            <a href="https://rmediatech.com" target="_blank" class="brand-sub">by RMediaTech</a>
         </div>
         <div class="telemetry">
             <span class="telemetry-item"><span class="dot"></span> <span id="tel-device">Connecting...</span></span>
@@ -254,9 +26,9 @@
     </header>
 
     <nav>
-        <div class="nav-tab active" onclick="switchTab('explorer')">📁 File Explorer & Sideload</div>
-        <div class="nav-tab" onclick="switchTab('clipboard')">📋 Clipboard Bridge</div>
-        <div class="nav-tab" onclick="switchTab('logcat')">📜 Wireless Logcat</div>
+        <div class="nav-tab active" data-tab="explorer" onclick="switchTab('explorer', this)">📁 File Explorer & Sideload</div>
+        <div class="nav-tab" data-tab="clipboard" onclick="switchTab('clipboard', this)">📋 Clipboard Bridge</div>
+        <div class="nav-tab" data-tab="logcat" onclick="switchTab('logcat', this)">📜 Wireless Logcat</div>
     </nav>
 
     <main>
@@ -268,10 +40,10 @@
 
             <div class="drop-zone" id="drop-zone">
                 <p><b>Drag & Drop files or APKs here</b> to upload or sideload</p>
-                <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Dropping an .apk will trigger the Android Package Installer on your device</p>
-                <input type="file" id="file-input" style="display: none;" onchange="handleFileSelect(event)">
-                <button class="btn btn-primary" style="margin-top: 12px;" onclick="document.getElementById('file-input').click()">Browse Files</button>
-                <button class="btn" style="margin-top: 12px; margin-left: 8px;" onclick="downloadZip()">Download Folder as .ZIP</button>
+                <p class="drop-zone-hint">Dropping an .apk will trigger the Android Package Installer on your device</p>
+                <input type="file" id="file-input" class="hidden" onchange="handleFileSelect(event)">
+                <button class="btn btn-primary drop-zone-btn" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                <button class="btn drop-zone-btn-zip" onclick="downloadZip()">Download Folder as .ZIP</button>
             </div>
 
             <table class="file-table">
@@ -280,11 +52,11 @@
                         <th>Name</th>
                         <th>Size</th>
                         <th>Type</th>
-                        <th style="text-align: right;">Actions</th>
+                        <th class="text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="file-tbody">
-                    <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Loading filesystem...</td></tr>
+                    <tr><td colspan="4" class="text-center text-muted">Loading filesystem...</td></tr>
                 </tbody>
             </table>
         </section>
@@ -300,7 +72,7 @@
                 <div class="clip-box">
                     <h3>Phone Clipboard Stream</h3>
                     <div id="clip-history">
-                        <p style="color: var(--text-muted); font-size: 13px;">Waiting for clipboard updates from device...</p>
+                        <p class="clip-empty">Waiting for clipboard updates from device...</p>
                     </div>
                 </div>
             </div>
@@ -310,7 +82,7 @@
         <section id="panel-logcat" class="panel">
             <div class="logcat-container">
                 <div class="logcat-toolbar">
-                    <input type="text" id="logcat-filter" placeholder="Filter by tag or keyword (e.g. Janus, ActivityManager)..." style="flex: 1; background: var(--bg-base); border: 1px solid var(--border); color: var(--text-main); padding: 6px 12px; border-radius: 4px;" oninput="filterLogcat()">
+                    <input type="text" id="logcat-filter" class="logcat-search-input" placeholder="Filter by tag or keyword (e.g. Janus, ActivityManager)..." oninput="filterLogcat()">
                     <button class="btn" onclick="toggleLogcat()" id="logcat-toggle-btn">Stop Stream</button>
                     <button class="btn btn-danger" onclick="clearLogcat()">Clear</button>
                 </div>
@@ -320,491 +92,41 @@
     </main>
 
     <!-- Pairing PIN Modal -->
-    <div id="auth-modal" class="modal-overlay" style="display: none;">
+    <div id="auth-modal" class="modal-overlay">
         <div class="modal-card">
             <div class="modal-logo">JANUS</div>
             <div class="modal-subtitle">SOVEREIGN WORKSTATION PAIRING</div>
             <p class="modal-desc">Enter the Pairing PIN displayed on your Android device (e.g. <b>JNX-B3AN</b>) to unlock access.</p>
-            <input type="text" id="auth-pin-input" class="pin-input" placeholder="JNX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="16" onkeydown="if(event.key==='Enter') submitAuthPin()">
+            <input type="text" id="auth-pin-input" class="pin-input" placeholder="JNX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="16">
             <div id="auth-error-msg" class="modal-error"></div>
-            <button class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 14px; letter-spacing: 1px;" onclick="submitAuthPin()">CONNECT TO DEVICE</button>
-            <p style="font-size: 11px; color: var(--text-muted); margin-top: 16px;">Zero Cloud • Local LAN Peer-to-Peer • 100% Sovereign</p>
+            <button class="btn btn-primary btn-block-lg" onclick="submitAuthPin()">CONNECT TO DEVICE</button>
+            <p class="modal-footer-note">Zero Cloud • Local LAN Peer-to-Peer • 100% Sovereign</p>
         </div>
     </div>
 
-    <script>
-        let currentPath = '';
-        let urlToken = new URLSearchParams(window.location.search).get('token');
-        let authToken = (urlToken || localStorage.getItem('janus_pairing_token') || '').trim();
-        if (urlToken) {
-            localStorage.setItem('janus_pairing_token', urlToken.trim());
-        }
-
-        let ws = null;
-        let wsPingInterval = null;
-        let logcatActive = false;
-        let allLogcatLines = [];
-
-        function updateAuthBadge() {
-            const badge = document.getElementById('auth-pin-display');
-            if (badge) {
-                badge.innerText = authToken ? authToken : 'Enter PIN';
-            }
-        }
-
-        function showAuthModal(errMsg = '') {
-            const modal = document.getElementById('auth-modal');
-            const errDiv = document.getElementById('auth-error-msg');
-            const input = document.getElementById('auth-pin-input');
-            if (modal) modal.style.display = 'flex';
-            if (errDiv) {
-                errDiv.innerText = errMsg;
-                errDiv.style.display = errMsg ? 'block' : 'none';
-                errDiv.style.color = 'var(--danger)';
-            }
-            if (input) {
-                if (authToken && !input.value) input.value = authToken;
-                setTimeout(() => input.focus(), 100);
-            }
-        }
-
-        function hideAuthModal() {
-            const modal = document.getElementById('auth-modal');
-            if (modal) modal.style.display = 'none';
-        }
-
-        async function submitAuthPin() {
-            const input = document.getElementById('auth-pin-input');
-            const errDiv = document.getElementById('auth-error-msg');
-            const pin = (input ? input.value : '').trim().toUpperCase();
-            if (!pin) {
-                if (errDiv) {
-                    errDiv.innerText = 'Please enter the pairing PIN from your phone.';
-                    errDiv.style.display = 'block';
-                    errDiv.style.color = 'var(--danger)';
-                }
-                return;
-            }
-
-            try {
-                if (errDiv) {
-                    errDiv.innerText = 'Verifying with device...';
-                    errDiv.style.display = 'block';
-                    errDiv.style.color = 'var(--accent)';
-                }
-                const res = await fetch('/api/v1/auth/status?token=' + encodeURIComponent(pin));
-                if (res.ok) {
-                    const data = await res.json();
-                    authToken = pin;
-                    localStorage.setItem('janus_pairing_token', pin);
-                    updateAuthBadge();
-                    hideAuthModal();
-                    document.getElementById('tel-device').innerText = `${data.deviceBrand} ${data.deviceName} (Android ${data.androidVersion})`;
-                    document.getElementById('tel-storage').innerText = data.storageFormatted;
-                    loadFiles('');
-                    fetchClipboardHistory();
-                    initWebSocket();
-                } else {
-                    if (errDiv) {
-                        errDiv.style.color = 'var(--danger)';
-                        errDiv.innerText = 'Authentication failed: Invalid PIN. Check the code on your phone.';
-                        errDiv.style.display = 'block';
-                    }
-                }
-            } catch (e) {
-                if (errDiv) {
-                    errDiv.style.color = 'var(--danger)';
-                    errDiv.innerText = 'Connection error: Unable to reach device on this network.';
-                    errDiv.style.display = 'block';
-                }
-            }
-        }
-
-        function switchTab(tab) {
-            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById('panel-' + tab).classList.add('active');
-
-            if (tab === 'logcat' && !logcatActive) {
-                toggleLogcat();
-            }
-        }
-
-        async function fetchStatus() {
-            if (!authToken) {
-                showAuthModal();
-                return;
-            }
-            try {
-                const res = await fetch('/api/v1/auth/status?token=' + encodeURIComponent(authToken));
-                if (res.status === 401 || res.status === 403) {
-                    authToken = '';
-                    localStorage.removeItem('janus_pairing_token');
-                    updateAuthBadge();
-                    showAuthModal('PIN rejected or session expired. Please re-enter device Pairing PIN.');
-                    return;
-                }
-                if (res.ok) {
-                    const data = await res.json();
-                    document.getElementById('tel-device').innerText = `${data.deviceBrand} ${data.deviceName} (Android ${data.androidVersion})`;
-                    document.getElementById('tel-storage').innerText = data.storageFormatted;
-                }
-            } catch (e) {
-                console.error('Status fetch failed', e);
-            }
-        }
-
-        async function loadFiles(path = '') {
-            if (!authToken) {
-                showAuthModal();
-                return;
-            }
-            currentPath = path;
-            renderBreadcrumbs();
-            const tbody = document.getElementById('file-tbody');
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Loading...</td></tr>';
-            try {
-                const res = await fetch(`/api/v1/fs/list?path=${encodeURIComponent(path)}&token=${encodeURIComponent(authToken)}`);
-                if (res.status === 401 || res.status === 403) {
-                    showAuthModal('PIN authentication required to access device storage.');
-                    return;
-                }
-                const data = await res.json();
-                if (data.entries) {
-                    renderFileTable(data.entries);
-                } else {
-                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger);">Failed to load directory.</td></tr>';
-                }
-            } catch (e) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger);">Failed to load directory.</td></tr>';
-            }
-        }
-
-        function getParentPath(path) {
-            if (!path) return '';
-            const parts = path.split('/').filter(Boolean);
-            parts.pop();
-            return parts.join('/');
-        }
-
-        function escapeHtml(str) {
-            return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
-
-        function escapeJs(str) {
-            return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        }
-
-        function renderBreadcrumbs() {
-            const container = document.getElementById('breadcrumbs');
-            const parts = currentPath.split('/').filter(Boolean);
-            const parentPath = getParentPath(currentPath);
-
-            const upBtn = currentPath
-                ? `<button class="btn btn-xs" style="margin-right: 8px;" onclick="navigateTo('${escapeJs(parentPath)}')">⬆ Up</button>`
-                : '';
-
-            let html = upBtn + `<span class="crumb" onclick="navigateTo('')">root</span>`;
-            let accumulated = '';
-            for (let i = 0; i < parts.length; i++) {
-                const part = parts[i];
-                accumulated += (accumulated ? '/' : '') + part;
-                const isLast = (i === parts.length - 1);
-                if (isLast) {
-                    html += ` / <span class="crumb">${escapeHtml(part)}</span>`;
-                } else {
-                    html += ` / <span class="crumb" onclick="navigateTo('${escapeJs(accumulated)}')">${escapeHtml(part)}</span>`;
-                }
-            }
-            container.innerHTML = html;
-        }
-
-        function navigateTo(path) {
-            loadFiles(path);
-        }
-
-        function renderFileTable(entries) {
-            const tbody = document.getElementById('file-tbody');
-            let parentRow = '';
-            if (currentPath) {
-                const parentPath = getParentPath(currentPath);
-                parentRow = `
-                    <tr class="parent-dir-row" onclick="navigateTo('${escapeJs(parentPath)}')">
-                        <td colspan="4">
-                            <div class="file-name" style="color: var(--accent); font-weight: 600;">
-                                <span>📁</span>
-                                <b>.. (Parent Directory)</b>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }
-
-            if (entries.length === 0) {
-                tbody.innerHTML = parentRow + '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Empty folder</td></tr>';
-                return;
-            }
-
-            const rows = entries.map(item => {
-                const icon = item.isDirectory ? '📁' : (item.isApk ? '📦' : '📄');
-                const badge = item.isApk ? '<span class="apk-badge">APK</span>' : '';
-                const clickHandler = item.isDirectory ? `onclick="navigateTo('${escapeJs(item.path)}')"` : '';
-                return `
-                    <tr>
-                        <td>
-                            <div class="file-name" ${clickHandler}>
-                                <span>${icon}</span>
-                                <b>${escapeHtml(item.name)}</b>
-                                ${badge}
-                            </div>
-                        </td>
-                        <td>${item.formattedSize}</td>
-                        <td style="color: var(--text-muted); font-size: 12px;">${item.mimeType}</td>
-                        <td style="text-align: right;">
-                            ${item.isApk ? `<button class="btn btn-primary btn-xs" onclick="installApk('${escapeJs(item.path)}')">Install</button>` : ''}
-                            ${!item.isDirectory ? `<button class="btn btn-xs" onclick="downloadFile('${escapeJs(item.path)}')">Download</button>` : `<button class="btn btn-xs" onclick="downloadZip('${escapeJs(item.path)}')">.ZIP</button>`}
-                            <button class="btn btn-danger btn-xs" onclick="deleteEntry('${escapeJs(item.path)}')">Delete</button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-
-            tbody.innerHTML = parentRow + rows;
-        }
-
-        function downloadFile(path) {
-            window.location.href = `/api/v1/fs/download?path=${encodeURIComponent(path)}&token=${encodeURIComponent(authToken)}`;
-        }
-
-        function downloadZip(path = currentPath) {
-            window.location.href = `/api/v1/fs/zip?path=${encodeURIComponent(path)}&token=${encodeURIComponent(authToken)}`;
-        }
-
-        async function deleteEntry(path) {
-            if (!confirm(`Are you sure you want to delete ${path}?`)) return;
-            const res = await fetch(`/api/v1/fs/delete?path=${encodeURIComponent(path)}&token=${encodeURIComponent(authToken)}`, { method: 'POST' });
-            if (res.status === 401) {
-                showAuthModal('PIN authentication required.');
-                return;
-            }
-            loadFiles(currentPath);
-        }
-
-        async function installApk(path) {
-            if (!confirm(`Trigger Android Package Installer on device for:\n${path}?`)) return;
-            try {
-                const res = await fetch(`/api/v1/install?path=${encodeURIComponent(path)}&token=${encodeURIComponent(authToken)}`, {
-                    method: 'POST'
-                });
-                const data = await res.json();
-                if (res.ok && data.success) {
-                    alert('Package installer triggered on your Android device! Complete installation on screen.');
-                } else {
-                    alert('Failed to install APK: ' + (data.error || 'Unknown error'));
-                }
-            } catch (e) {
-                alert('Failed to reach device: ' + e.message);
-            }
-        }
-
-        // Drop zone handlers
-        const dropZone = document.getElementById('drop-zone');
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) {
-                uploadFiles(e.dataTransfer.files);
-            }
-        });
-
-        function handleFileSelect(e) {
-            if (e.target.files.length > 0) {
-                uploadFiles(e.target.files);
-            }
-        }
-
-        async function uploadFiles(files) {
-            if (!authToken) {
-                showAuthModal('PIN required to upload files.');
-                return;
-            }
-            for (const file of files) {
-                const formData = new FormData();
-                formData.append('file', file);
-                const isApk = file.name.endsWith('.apk');
-                const endpoint = isApk 
-                    ? `/api/v1/install?token=${encodeURIComponent(authToken)}` 
-                    : `/api/v1/fs/upload?path=${encodeURIComponent(currentPath)}&fileName=${encodeURIComponent(file.name)}&token=${encodeURIComponent(authToken)}`;
-
-                try {
-                    const res = await fetch(endpoint, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    if (res.status === 401) {
-                        showAuthModal('PIN required to upload files.');
-                        return;
-                    }
-                } catch (e) {
-                    console.error('Upload failed', e);
-                }
-            }
-            loadFiles(currentPath);
-        }
-
-        // Clipboard
-        async function pushClipboard() {
-            if (!authToken) {
-                showAuthModal();
-                return;
-            }
-            const text = document.getElementById('clip-input').value;
-            if (!text.trim()) return;
-            const res = await fetch(`/api/v1/clipboard?token=${encodeURIComponent(authToken)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text })
-            });
-            if (res.status === 401) {
-                showAuthModal('PIN authentication required for clipboard.');
-                return;
-            }
-            document.getElementById('clip-input').value = '';
-            fetchClipboardHistory();
-        }
-
-        async function fetchClipboardHistory() {
-            if (!authToken) return;
-            try {
-                const res = await fetch(`/api/v1/clipboard?token=${encodeURIComponent(authToken)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    renderClipboardHistory(data.history || []);
-                }
-            } catch (e) {}
-        }
-
-        function renderClipboardHistory(items) {
-            const container = document.getElementById('clip-history');
-            if (items.length === 0) {
-                container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No clipboard entries yet.</p>';
-                return;
-            }
-            container.innerHTML = items.map(item => `
-                <div class="clip-history-item">
-                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">${item.text}</span>
-                    <button class="btn" onclick="navigator.clipboard.writeText('${item.text.replace(/'/g, "\\'")}')">Copy</button>
+    <!-- File Preview Modal -->
+    <div id="preview-modal" class="modal-overlay" onclick="handlePreviewOverlayClick(event)">
+        <div class="preview-modal-card">
+            <div class="preview-header">
+                <div class="preview-title">
+                    <span id="preview-icon">📄</span>
+                    <span id="preview-filename">File Preview</span>
+                    <span id="preview-size" class="preview-size-badge"></span>
                 </div>
-            `).join('');
-        }
+                <div class="preview-actions">
+                    <button id="preview-copy-btn" class="btn btn-xs hidden" onclick="copyPreviewText()">Copy Text</button>
+                    <button id="preview-download-btn" class="btn btn-primary btn-xs" onclick="downloadPreviewFile()">Download</button>
+                    <button class="btn btn-xs" onclick="closePreviewModal()">✕</button>
+                </div>
+            </div>
+            <div id="preview-body" class="preview-body">
+                <div class="text-muted">Loading preview...</div>
+            </div>
+        </div>
+    </div>
 
-        // WebSockets
-        function initWebSocket() {
-            if (!authToken) {
-                document.getElementById('tel-ws').innerText = 'Auth Required';
-                document.getElementById('tel-ws').style.color = 'var(--text-muted)';
-                return;
-            }
-            if (wsPingInterval) {
-                clearInterval(wsPingInterval);
-                wsPingInterval = null;
-            }
-            if (ws) {
-                try { ws.close(); } catch (_) {}
-            }
-            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            try {
-                ws = new WebSocket(`${proto}//${window.location.host}/ws?token=${encodeURIComponent(authToken)}`);
-                ws.onopen = () => {
-                    document.getElementById('tel-ws').innerText = 'WS Live';
-                    document.getElementById('tel-ws').style.color = 'var(--success)';
-                    // 2500ms heartbeat keep-alive prevents any socket idle read timeouts
-                    wsPingInterval = setInterval(() => {
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            try { ws.send(JSON.stringify({ action: 'ping' })); } catch (_) {}
-                        }
-                    }, 2500);
-                };
-                ws.onclose = () => {
-                    if (wsPingInterval) { clearInterval(wsPingInterval); wsPingInterval = null; }
-                    document.getElementById('tel-ws').innerText = 'Reconnecting...';
-                    document.getElementById('tel-ws').style.color = 'var(--accent-amber)';
-                    if (authToken) {
-                        setTimeout(initWebSocket, 2000);
-                    }
-                };
-                ws.onerror = () => {
-                    try { ws.close(); } catch(e) {}
-                };
-                ws.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        if (data.type === 'clipboard_update') {
-                            fetchClipboardHistory();
-                        } else if (data.type === 'logcat_line') {
-                            appendLogcat(data.line);
-                        }
-                    } catch (e) {}
-                };
-            } catch (e) {
-                if (authToken) setTimeout(initWebSocket, 3000);
-            }
-        }
-
-        // Periodic background poll guaranteeing updates even if socket buffers or sleeps
-        setInterval(() => {
-            if (authToken) fetchClipboardHistory();
-        }, 2000);
-
-        // Logcat
-        function toggleLogcat() {
-            logcatActive = !logcatActive;
-            const btn = document.getElementById('logcat-toggle-btn');
-            btn.innerText = logcatActive ? 'Stop Stream' : 'Resume Stream';
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ action: logcatActive ? 'start_logcat' : 'stop_logcat' }));
-            }
-        }
-
-        function clearLogcat() {
-            allLogcatLines = [];
-            document.getElementById('logcat-console').innerHTML = '';
-        }
-
-        function appendLogcat(line) {
-            allLogcatLines.push(line);
-            if (allLogcatLines.length > 2000) allLogcatLines.shift();
-            const consoleDiv = document.getElementById('logcat-console');
-            const p = document.createElement('div');
-            p.innerText = line;
-            if (line.includes(' E ') || line.includes('FATAL')) p.className = 'logcat-line-error';
-            else if (line.includes(' W ')) p.className = 'logcat-line-warn';
-            else if (line.includes(' I ')) p.className = 'logcat-line-info';
-            consoleDiv.appendChild(p);
-            consoleDiv.scrollTop = consoleDiv.scrollHeight;
-        }
-
-        // Initial Boot
-        updateAuthBadge();
-        if (authToken) {
-            fetchStatus();
-            loadFiles('');
-            fetchClipboardHistory();
-            initWebSocket();
-        } else {
-            showAuthModal();
-        }
-    </script>
-    <footer style="background: var(--bg-surface); border-top: 1px solid var(--border); padding: 14px 24px; text-align: center; font-size: 12px; color: var(--text-muted); margin-top: auto;">
-        Janus Sovereign Bridge v1.0.0 • Crafted by <a href="https://rmediatech.com" target="_blank" style="color: var(--accent); text-decoration: none; font-weight: bold;">RMediaTech</a> • Zero-Cloud Privacy & Autonomous Mobile Workstation
+    <footer>
+        Janus Sovereign Bridge v1.0.0 • Crafted by <a href="https://rmediatech.com" target="_blank" class="footer-link">RMediaTech</a> • Zero-Cloud Privacy & Autonomous Mobile Workstation
     </footer>
 </body>
 </html>

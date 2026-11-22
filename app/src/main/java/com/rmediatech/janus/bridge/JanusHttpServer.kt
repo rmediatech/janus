@@ -70,6 +70,17 @@ class JanusHttpServer(
             SovereignLogger.i(SovereignLogger.Category.HTTP, "$method $uri from $clientIp (${String.format(Locale.US, "%.1f", latencyMs)}ms) -> 200 OK")
             return res
         }
+        if (uri.startsWith("/css/") || uri.startsWith("/js/") || uri.startsWith("/assets/")) {
+            val safeSubPath = uri.removePrefix("/").replace("..", "")
+            val mime = when {
+                safeSubPath.endsWith(".css") -> "text/css"
+                safeSubPath.endsWith(".js") -> "application/javascript"
+                safeSubPath.endsWith(".svg") -> "image/svg+xml"
+                safeSubPath.endsWith(".png") -> "image/png"
+                else -> "application/octet-stream"
+            }
+            return serveAsset("web/$safeSubPath", mime)
+        }
         if (uri == "/api/v1/auth/login" && method == Method.POST) return handleLogin(session, clientIp)
 
         if (uri.startsWith("/api/")) {
@@ -191,10 +202,12 @@ class JanusHttpServer(
             return jsonResponse(Response.Status.NOT_FOUND, JSONObject().put("error", "File not found"))
         }
 
+        val inline = session.parameters["inline"]?.firstOrNull()?.toBoolean() ?: false
         val safeName = PathTraversalShield.sanitizeFileName(file.name)
-        SovereignLogger.i(SovereignLogger.Category.FS, "DOWNLOAD file='$safeName' (${file.length()} bytes) by $clientIp")
+        val disposition = if (inline) "inline" else "attachment"
+        SovereignLogger.i(SovereignLogger.Category.FS, "${if (inline) "PREVIEW" else "DOWNLOAD"} file='$safeName' (${file.length()} bytes) by $clientIp")
         return newFixedLengthResponse(Response.Status.OK, FileEntry.detectMimeType(safeName), FileInputStream(file), file.length()).apply {
-            addHeader("Content-Disposition", "attachment; filename=\"$safeName\"")
+            addHeader("Content-Disposition", "$disposition; filename=\"$safeName\"")
         }
     }
 
@@ -303,7 +316,13 @@ class JanusHttpServer(
     }
 
     private fun serveAsset(assetPath: String, mimeType: String): Response = try {
-        newChunkedResponse(Response.Status.OK, mimeType, context.assets.open(assetPath))
+        newChunkedResponse(Response.Status.OK, mimeType, context.assets.open(assetPath)).apply {
+            if (assetPath.endsWith(".html")) {
+                addHeader("Cache-Control", "no-store, no-cache, must-revalidate")
+            } else {
+                addHeader("Cache-Control", "public, max-age=3600")
+            }
+        }
     } catch (_: Exception) {
         newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Asset not found: $assetPath")
     }
@@ -313,5 +332,6 @@ class JanusHttpServer(
             addHeader("Access-Control-Allow-Origin", "*")
             addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Janus-Client-Id")
+            addHeader("Cache-Control", "no-store, no-cache, must-revalidate")
         }
 }
